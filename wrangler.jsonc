@@ -1,15 +1,16 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "trh360-crm-local",
+  "name": "trh360-crm",
   "main": "worker/index.ts",
   "compatibility_date": "2026-05-22",
   "compatibility_flags": ["nodejs_compat"],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "site-creator-d1",
-      "database_id": "4aaf150c-846b-4765-aaee-eaa994309811",
-      "migrations_dir": "drizzle"
-    }
-  ]
+  // Bind DB, WORK_QUEUE, WORK_DLQ, EVIDENCE_BUCKET, and BACKUP_BUCKET via
+  // environment-specific Cloudflare dashboard/IaC after resources are provisioned.
+  // IDs and secrets are intentionally not committed here.
+  "env": {
+    "development": { "vars": { "DEPLOYMENT_ENV": "development", "PATIENT_DATA_INGESTION": "synthetic_only" } },
+    "staging": { "vars": { "DEPLOYMENT_ENV": "staging", "PATIENT_DATA_INGESTION": "synthetic_only" } },
+    "production": { "vars": { "DEPLOYMENT_ENV": "production", "PATIENT_DATA_INGESTION": "blocked_until_policy_review" } }
+  },
+  "triggers": { "crons": ["*/5 * * * *", "17 2 * * *", "43 3 * * *"] }
 }

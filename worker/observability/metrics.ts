@@ -1,0 +1,7 @@
+/** Metrics use bounded names and dimensions only; values never contain identifiers or PHI. */
+export type MetricName = "http_requests" | "http_latency_ms" | "http_errors" | "jobs_age_ms" | "outbox_age_ms" | "sla_overdue" | "cadence_lag_ms" | "job_retries" | "dlq_entries" | "webhook_signature_failures" | "consent_blocked_sends" | "capacity_used" | "provider_cost_minor" | "missing_remarks" | "missing_diagnoses" | "reporting_watermark_lag_ms" | "retention_failures" | "backup_age_ms";
+export interface MetricSink { increment(name: MetricName, value?: number, dimensions?: Record<string, string>): void; observe(name: MetricName, value: number, dimensions?: Record<string, string>): void; }
+const allowedDimensions = new Set(["environment", "route", "method", "status", "provider", "jobType", "outcome", "currency"]);
+function dimensions(input?: Record<string, string>): Record<string, string> | undefined { if (!input) return undefined; return Object.fromEntries(Object.entries(input).filter(([key, value]) => allowedDimensions.has(key) && /^[A-Za-z0-9_.-]{1,64}$/u.test(value))); }
+export function metric(sink: MetricSink, name: MetricName, value = 1, input?: Record<string, string>): void { sink.increment(name, value, dimensions(input)); }
+export function timing(sink: MetricSink, name: Extract<MetricName, "http_latency_ms" | "jobs_age_ms" | "outbox_age_ms" | "cadence_lag_ms" | "reporting_watermark_lag_ms" | "backup_age_ms">, value: number, input?: Record<string, string>): void { sink.observe(name, Math.max(0, value), dimensions(input)); }

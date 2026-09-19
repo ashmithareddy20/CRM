@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ApiClient, apiErrorMessage, newIdempotencyKey, type LeadSummary } from '../../lib/api';
 
 type Screen =
   | 'home'
@@ -18,11 +19,23 @@ type MobileLead = {
   id: string;
   name: string;
   phone: string;
-  city: string;
-  status: string;
-  concern: string;
+  source: string;
+  stage: string;
+  qualification: string;
   createdAt?: string;
 };
+
+const api = new ApiClient();
+const displayLead = (lead: LeadSummary): MobileLead => ({
+  id: lead.id,
+  name: lead.name?.trim() || 'Unnamed lead',
+  phone: lead.phone ?? '',
+  source: lead.source ?? lead.sourceId ?? 'Source not recorded',
+  stage: lead.lifecycleStage ?? 'received',
+  qualification: lead.qualification ?? 'Unknown',
+  createdAt: lead.createdAt ?? undefined,
+});
+
 
 const indiaDateFormatter = new Intl.DateTimeFormat('en-IN', {
   timeZone: 'Asia/Kolkata', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
@@ -33,38 +46,23 @@ const indiaDateTimeFormatter = new Intl.DateTimeFormat('en-IN', {
 const formatIndiaDate = (value = new Date()) => indiaDateFormatter.format(value);
 const formatIndiaDateTime = (value?: string) => value ? indiaDateTimeFormatter.format(new Date(value)) : 'Just now';
 
-const leads: MobileLead[] = [
-  { id: 'TRH-24190', name: 'Lakshmi Narayana', phone: '+91 98491 22618', city: 'Hyderabad', status: 'Hot', concern: 'Enterprise CRM rollout' },
-  { id: 'TRH-24191', name: 'Madhavi Rao', phone: '+91 98122 44015', city: 'Bengaluru', status: 'Warm', concern: 'Pricing follow-up' },
-  { id: 'TRH-24192', name: 'Faizal Khan', phone: '+91 99001 66189', city: 'Chennai', status: 'Cold', concern: 'Renewal discussion' },
-];
-
 export default function App() {
   const [screen, setScreen] = useState<Screen>('login');
   const [callSeconds, setCallSeconds] = useState(278);
-  const [mobileLeads, setMobileLeads] = useState(leads);
-  const [selectedLead, setSelectedLead] = useState<MobileLead>(leads[0]);
+  const [mobileLeads, setMobileLeads] = useState<MobileLead[]>([]);
+  const [selectedLead, setSelectedLead] = useState<MobileLead | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadLeads = () => fetch('/api/leads')
-      .then((response) => response.ok ? response.json() as Promise<{ success: boolean; data?: Array<{ id: string; name: string; phone?: string | null; status?: string | null; createdAt?: string | null }> }> : Promise.reject(new Error('Unable to load leads')))
-      .then((result) => {
-        if (!result.success || !result.data) return;
-        setMobileLeads(result.data.map((lead) => ({
-          id: lead.id,
-          name: lead.name,
-          phone: lead.phone ?? '',
-          city: 'Unassigned',
-          status: lead.status === 'new' ? 'New' : lead.status ?? 'New',
-          concern: 'New CRM lead',
-          createdAt: lead.createdAt ?? undefined,
-        })));
-      })
-      .catch(() => undefined);
-
-    loadLeads();
-    const refreshTimer = window.setInterval(loadLeads, 5000);
-    return () => window.clearInterval(refreshTimer);
+    let active = true;
+    void api.leads().then((page) => {
+      if (!active) return;
+      const next = page.items.map(displayLead);
+      setMobileLeads(next);
+      setSelectedLead((current) => current ? next.find((lead) => lead.id === current.id) ?? null : next[0] ?? null);
+      setLoadError(null);
+    }).catch((error) => { if (active) { setMobileLeads([]); setLoadError(apiErrorMessage(error)); } });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -86,11 +84,11 @@ export default function App() {
       case 'create-lead':
         return <CreateLeadScreen onBack={() => setScreen('queue')} onCreated={(lead) => { setMobileLeads((current) => [lead, ...current]); setSelectedLead(lead); setScreen('lead-360'); }} />;
       case 'active-call':
-        return <ActiveCallScreen callSeconds={callSeconds} onEnd={() => setScreen('post-call')} />;
+        return selectedLead ? <ActiveCallScreen lead={selectedLead} callSeconds={callSeconds} onEnd={() => setScreen('post-call')} /> : <EmptyState message="Select a lead before starting a call." />;
       case 'post-call':
-        return <PostCallScreen onSave={() => { setScreen('lead-360'); }} />;
+        return selectedLead ? <PostCallScreen lead={selectedLead} onSaved={() => setScreen('lead-360')} /> : <EmptyState message="Select a lead before saving a call." />;
       case 'lead-360':
-        return <Lead360Screen lead={selectedLead} onOpen={(next) => setScreen(next)} />;
+        return selectedLead ? <Lead360Screen lead={selectedLead} onOpen={(next) => setScreen(next)} /> : <EmptyState message="No lead is selected." />;
       case 'tasks':
         return <TasksScreen onOpen={(next) => setScreen(next)} />;
       case 'notifications':
@@ -102,9 +100,9 @@ export default function App() {
       default:
         return <HomeScreen leads={mobileLeads} onOpen={(next) => setScreen(next)} onSelectLead={(lead) => { setSelectedLead(lead); setScreen('lead-360'); }} />;
     }
-  }, [screen, callSeconds, selectedLead]);
+  }, [screen, callSeconds, mobileLeads, selectedLead]);
 
-  return <div className="mobile-shell">{content}</div>;
+  return <div className="mobile-shell">{loadError && <p role="alert" className="review-box">{loadError}</p>}{content}</div>;
 }
 
 function LoginScreen({ onContinue }: { onContinue: () => void }) {
@@ -212,13 +210,13 @@ function HomeScreen({ leads, onOpen, onSelectLead }: { leads: MobileLead[]; onOp
               <div className="mini-avatar">{lead.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div>
               <div>
                 <strong>{lead.name}</strong>
-                <small>{lead.concern} · {formatIndiaDateTime(lead.createdAt)}</small>
+                <small>{lead.stage} · {formatIndiaDateTime(lead.createdAt)}</small>
               </div>
-              <span className={`badge ${lead.status.toLowerCase()}`}>{lead.status}</span>
+              <span className={`badge ${lead.qualification.toLowerCase()}`}>{lead.qualification}</span>
             </div>
             <div className="lead-meta">
               <span>Call now</span>
-              <span>{lead.city}</span>
+              <span>{lead.source}</span>
             </div>
             <div className="lead-actions">
               <button>Message</button>
@@ -240,7 +238,7 @@ function HomeScreen({ leads, onOpen, onSelectLead }: { leads: MobileLead[]; onOp
 
 function QueueScreen({ leads, onOpen, onSelectLead }: { leads: MobileLead[]; onOpen: (screen: Screen) => void; onSelectLead: (lead: MobileLead) => void }) {
   const [search, setSearch] = useState('');
-  const visibleLeads = leads.filter((lead) => `${lead.name} ${lead.phone} ${lead.concern}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const visibleLeads = leads.filter((lead) => `${lead.name} ${lead.phone} ${lead.stage}`.toLowerCase().includes(search.trim().toLowerCase()));
   return (
     <div className="screen queue-screen">
       <header className="mobile-header">
@@ -267,10 +265,10 @@ function QueueScreen({ leads, onOpen, onSelectLead }: { leads: MobileLead[]; onO
             <div className="queue-text">
               <strong>{lead.name}</strong>
               <small>{lead.phone}</small>
-              <small>{lead.concern} · {formatIndiaDateTime(lead.createdAt)}</small>
+              <small>{lead.stage} · {formatIndiaDateTime(lead.createdAt)}</small>
             </div>
             <div className="queue-side">
-              <span className={`badge ${lead.status.toLowerCase()}`}>{lead.status}</span>
+              <span className={`badge ${lead.qualification.toLowerCase()}`}>{lead.qualification}</span>
               <button className="call-small" onClick={(event) => { event.stopPropagation(); onOpen('active-call'); }}>☎</button>
             </div>
           </div>
@@ -303,31 +301,17 @@ function CreateLeadScreen({ onBack, onCreated }: { onBack: () => void; onCreated
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
-          email: email.trim(),
-          source: source.trim() || 'mobile',
-          status: 'new',
-          ownerId: 'agent-1',
-        }),
-      });
-      const result = await response.json() as { success: boolean; data?: { id: string; name: string; phone?: string; email?: string; source?: string; status?: string; createdAt?: string } };
-      if (!response.ok || !result.success || !result.data) throw new Error('Unable to save lead');
-      onCreated({
-        id: result.data.id,
-        name: result.data.name,
-        phone: result.data.phone ?? phone.trim(),
-        city: 'Unassigned',
-        status: result.data.status === 'new' ? 'New' : result.data.status ?? 'New',
-        concern: 'New CRM lead',
-        createdAt: result.data.createdAt,
-      });
-    } catch {
-      setError('The lead could not be saved. Check that the backend is running.');
+      const result = await api.createLead({
+        name: name.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        sourceId: source.trim(),
+        platform: 'mobile-web',
+        origin: 'manual',
+      }, newIdempotencyKey('lead'));
+      onCreated(displayLead(result));
+    } catch (error) {
+      setError(apiErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -351,7 +335,7 @@ function CreateLeadScreen({ onBack, onCreated }: { onBack: () => void; onCreated
   );
 }
 
-function ActiveCallScreen({ callSeconds, onEnd }: { callSeconds: number; onEnd: () => void }) {
+function ActiveCallScreen({ lead, callSeconds, onEnd }: { lead: MobileLead; callSeconds: number; onEnd: () => void }) {
   return (
     <div className="screen call-screen">
       <div className="status-row">
@@ -361,8 +345,8 @@ function ActiveCallScreen({ callSeconds, onEnd }: { callSeconds: number; onEnd: 
       <div className="recording-tag">Recording with consent</div>
       <div className="caller-card">
         <div className="circle-avatar">LN</div>
-        <h2>Lakshmi Narayana</h2>
-        <p>Outbound · TRH-24190</p>
+        <h2>{lead.name}</h2>
+        <p>Outbound · {lead.id}</p>
         <strong>{formatDuration(callSeconds)}</strong>
       </div>
       <div className="call-note-box">
@@ -381,61 +365,37 @@ function ActiveCallScreen({ callSeconds, onEnd }: { callSeconds: number; onEnd: 
   );
 }
 
-function PostCallScreen({ onSave }: { onSave: () => void }) {
-  const [selected, setSelected] = useState('Hot');
+function PostCallScreen({ lead, onSaved }: { lead: MobileLead; onSaved: () => void }) {
+  const [disposition, setDisposition] = useState<'meaningful_connection' | 'no_answer'>('meaningful_connection');
+  const [remark, setRemark] = useState('');
+  const [nextAction, setNextAction] = useState('');
+  const [nextDueAt, setNextDueAt] = useState('');
   const [saving, setSaving] = useState(false);
-
-  return (
-    <div className="screen post-call-screen">
-      <header className="mobile-header">
-        <button className="back-btn" onClick={() => onSave()}>←</button>
-        <div>
-          <strong>Review call</strong>
-          <small>4m 38s · AI draft</small>
-        </div>
-        <span className="ai-pill">91%</span>
-      </header>
-
-      <div className="review-box">
-        <div className="mini-panel">AI has not changed the lead.</div>
-        <label>
-          <span>Lead temperature</span>
-          <div className="toggle-group">
-            {['Hot', 'Warm', 'Cold'].map((item) => (
-              <button key={item} className={selected === item ? 'active' : ''} onClick={() => setSelected(item)}>{item}</button>
-            ))}
-          </div>
-        </label>
-        <label>
-          <span>Structured remark</span>
-          <textarea rows={6} defaultValue="High intent for an enterprise CRM rollout this quarter. Finance director Priya is the decision-maker. Pricing and implementation are the main concerns. Saturday solution review accepted." />
-        </label>
-        <label>
-          <span>Next action</span>
-          <button className="select-button">Today · 4:30 PM</button>
-        </label>
-      </div>
-
-      <div className="sticky-actions">
-        <button className="secondary">Draft</button>
-        <button className="primary" disabled={saving} onClick={async () => {
-          setSaving(true);
-          try {
-            await fetch('/api/calls', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ leadId: 'TRH-24190', agentId: 'agent-1', direction: 'outbound', outcome: selected.toLowerCase(), durationSec: 278 }),
-            });
-          } finally {
-            setSaving(false);
-            onSave();
-          }
-        }}>{saving ? 'Saving...' : 'Confirm & save'}</button>
-      </div>
-    </div>
-  );
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    setSaving(true); setError(null);
+    try {
+      const membership = await api.me();
+      const attempt = await api.recordCall({ leadId: lead.id, direction: 'outbound', disposition: 'answered', dialedAt: new Date(Date.now() - 60_000).toISOString(), endedAt: new Date().toISOString() }, newIdempotencyKey('call'));
+      await api.saveCallRemark(attempt.callAttemptId, {
+        disposition,
+        patientStatement: disposition === 'meaningful_connection' ? remark || undefined : undefined,
+        agentExplanation: remark || undefined,
+        nextAction: nextAction || undefined,
+        nextActionOwnerMembershipId: nextAction ? membership.membershipId : undefined,
+        nextActionDueAt: nextDueAt ? new Date(nextDueAt).toISOString() : undefined,
+        notApplicableReason: disposition === 'no_answer' ? remark || 'No conversation occurred' : undefined,
+      }, { idempotencyKey: newIdempotencyKey('remark') });
+      onSaved();
+    } catch (error) { setError(apiErrorMessage(error)); } finally { setSaving(false); }
+  };
+  return <div className="screen post-call-screen"><header className="mobile-header"><button className="back-btn" onClick={onSaved}>←</button><div><strong>Review call</strong><small>{lead.name} · Save structured facts only</small></div></header><div className="review-box"><label><span>Call outcome</span><select value={disposition} onChange={(event) => setDisposition(event.target.value as typeof disposition)}><option value="meaningful_connection">Meaningful connection</option><option value="no_answer">No answer</option></select></label><label><span>Structured remark</span><textarea rows={6} value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Record only what was discussed." /></label><label><span>Next commitment</span><input value={nextAction} onChange={(event) => setNextAction(event.target.value)} placeholder="Action to complete" /></label><label><span>Due at</span><input type="datetime-local" value={nextDueAt} onChange={(event) => setNextDueAt(event.target.value)} /></label>{error && <p role="alert">{error}</p>}</div><div className="sticky-actions single"><button className="primary" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Confirm & save'}</button></div></div>;
 }
 
-function Lead360Screen({ lead, onOpen }: { lead: typeof leads[number]; onOpen: (screen: Screen) => void }) {
+function EmptyState({ message }: { message: string }) { return <div className="screen"><div className="review-box" role="status">{message}</div></div>; }
+
+
+function Lead360Screen({ lead, onOpen }: { lead: MobileLead; onOpen: (screen: Screen) => void }) {
   return (
     <div className="screen lead360-screen">
       <header className="mobile-header">
@@ -451,8 +411,8 @@ function Lead360Screen({ lead, onOpen }: { lead: typeof leads[number]; onOpen: (
         <div className="circle-avatar large">{lead.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div>
         <div>
           <h2>{lead.name}</h2>
-          <p>{lead.phone} · {lead.city}</p>
-          <span className={`badge ${lead.status.toLowerCase()}`}>{lead.status} · 86</span>
+          <p>{lead.phone} · {lead.source}</p>
+          <span className={`badge ${lead.qualification.toLowerCase()}`}>{lead.qualification} · 86</span>
         </div>
       </div>
 

@@ -11,7 +11,28 @@ import {
   Alert,
 } from 'react-native';
 
-const API_BASE = 'http://localhost:5173/api';
+const configuredOrigin = process.env.EXPO_PUBLIC_CRM_API_ORIGIN?.replace(/\/$/, '');
+const API_BASE = configuredOrigin && /^https:\/\//.test(configuredOrigin) ? `${configuredOrigin}/api/v1` : null;
+
+// Expo SecureStore or platform keystore should supply this at runtime; never persist tokens in AsyncStorage.
+const accessToken = process.env.EXPO_PUBLIC_CRM_ACCESS_TOKEN;
+
+class MobileApiError extends Error {
+  constructor(message: string, readonly status?: number) { super(message); }
+}
+
+async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (!API_BASE) throw new MobileApiError('Configure an HTTPS EXPO_PUBLIC_CRM_API_ORIGIN before using CRM data.');
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, { ...init, headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...init.headers } });
+  } catch { throw new MobileApiError('Unable to reach the CRM service.'); }
+  const envelope = await response.json() as { success: boolean; data?: T; message?: string; error?: { message?: string; fields?: Record<string, string> } };
+  if (!response.ok || !envelope.success || !envelope.data) throw new MobileApiError(envelope.error?.message ?? envelope.message ?? 'CRM request was not accepted.', response.status);
+  return envelope.data;
+}
+
+function idempotencyKey(prefix: string) { return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`; }
 
 type Lead = {
   id: string;
@@ -23,17 +44,13 @@ type Lead = {
   concern?: string;
 };
 
-type LeadsResponse = { success: boolean; data?: Lead[]; message?: string };
-type LeadResponse = { success: boolean; data?: Lead; message?: string };
+type LeadResponse = { id: string; name?: string | null; phone?: string | null; email?: string | null; lifecycleStage?: string | null; qualification?: string | null; source?: string | null; sourceId?: string | null; };
 
 export default function App() {
   const [screen, setScreen] = useState<'home' | 'queue' | 'active-call' | 'post-call' | 'lead-360' | 'add-lead'>('home');
-  const [leads, setLeads] = useState<Lead[]>([
-    { id: 'TRH-24190', name: 'Lakshmi Narayana', phone: '+91 98491 22618', status: 'Hot', concern: 'Enterprise CRM rollout' },
-    { id: 'TRH-24184', name: 'Madhavi Rao', phone: '+91 99850 41172', status: 'Warm', concern: 'Premium service enquiry' },
-    { id: 'TRH-24179', name: 'Mohammed Faizal', phone: '+91 97011 98420', status: 'Warm', concern: 'Annual plan renewal' },
-  ]);
-  const [selectedLead, setSelectedLead] = useState<Lead>(leads[0]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [callSeconds, setCallSeconds] = useState(0);
   const [isCalling, setIsCalling] = useState(false);
 
@@ -44,20 +61,14 @@ export default function App() {
   const [newSource, setNewSource] = useState('Mobile App');
 
   useEffect(() => {
-    // Fetch live leads from backend
-    fetch(`${API_BASE}/leads`)
-      .then(res => res.json() as Promise<LeadsResponse>)
-      .then(res => {
-        if (res.success && res.data && res.data.length > 0) {
-          setLeads(res.data);
-          setSelectedLead(res.data[0]);
-        }
-      })
-      .catch(() => {});
+    void apiRequest<LeadResponse[]>('/leads?limit=25').then((items) => {
+      const next = items.map((lead) => ({ id: lead.id, name: lead.name ?? 'Unnamed lead', phone: lead.phone ?? undefined, email: lead.email ?? undefined, status: lead.qualification ?? lead.lifecycleStage ?? 'Unknown', source: lead.source ?? lead.sourceId ?? undefined }));
+      setLeads(next); setSelectedLead(next[0] ?? null); setLoadError(null);
+    }).catch((error: unknown) => setLoadError(error instanceof Error ? error.message : 'Unable to load CRM leads.'));
   }, []);
 
   useEffect(() => {
-    let interval: any;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (isCalling) {
       interval = setInterval(() => setCallSeconds(prev => prev + 1), 1000);
     }
@@ -77,49 +88,13 @@ export default function App() {
   };
 
   const handleSaveLead = async () => {
-    if (!newName.trim()) {
-      Alert.alert('Validation Error', 'Please enter a lead name.');
-      return;
-    }
-
+    if (!newName.trim() || (!newPhone.trim() && !newEmail.trim())) { Alert.alert('Validation error', 'Enter a name and phone number or email address.'); return; }
     try {
-      const res = await fetch(`${API_BASE}/leads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName.trim(),
-          phone: newPhone.trim(),
-          email: newEmail.trim(),
-          source: newSource,
-          status: 'new',
-          ownerId: 'agent-1',
-        }),
-      });
-      const data = await res.json() as LeadResponse;
-      if (data.success && data.data) {
-        const createdLead = data.data;
-        Alert.alert('Success', 'Lead created in CRM backend!');
-        setLeads(prev => [createdLead, ...prev]);
-        setNewName('');
-        setNewPhone('');
-        setNewEmail('');
-        setScreen('home');
-      } else {
-        Alert.alert('Error', data.message || 'Failed to create lead');
-      }
-    } catch {
-      // Local fallback
-      const localLead = {
-        id: `TRH-${Date.now().toString().slice(-5)}`,
-        name: newName.trim(),
-        phone: newPhone.trim(),
-        status: 'Hot',
-        concern: 'Mobile Enquiry',
-      };
-      setLeads(prev => [localLead, ...prev]);
-      Alert.alert('Saved', 'Lead added locally.');
-      setScreen('home');
-    }
+      const created = await apiRequest<LeadResponse>('/leads', { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey('lead') }, body: JSON.stringify({ name: newName.trim(), phone: newPhone.trim() || undefined, email: newEmail.trim() || undefined, sourceId: newSource.trim(), platform: 'native', origin: 'manual' }) });
+      const lead: Lead = { id: created.id, name: created.name ?? newName.trim(), phone: created.phone ?? newPhone.trim(), email: created.email ?? newEmail.trim(), status: created.qualification ?? created.lifecycleStage ?? 'Unknown', source: created.source ?? created.sourceId ?? undefined };
+      setLeads((current) => [lead, ...current]); setSelectedLead(lead); setNewName(''); setNewPhone(''); setNewEmail(''); setScreen('home');
+      Alert.alert('Saved', 'Lead created in CRM.');
+    } catch (error) { Alert.alert('Unable to save lead', error instanceof Error ? error.message : 'The CRM request was not accepted.'); }
   };
 
   const formatTime = (secs: number) => {
@@ -132,6 +107,7 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0b2545" />
 
+      {loadError && <View style={styles.alertBanner}><Text style={styles.alertDesc}>{loadError}</Text></View>}
       {/* TOPBAR */}
       <View style={styles.topbar}>
         <View style={styles.brand}>
@@ -197,8 +173,8 @@ export default function App() {
             <Text style={styles.backButtonText}>← Back to My Day</Text>
           </TouchableOpacity>
           <View style={styles.detailCard}>
-            <Text style={styles.detailTitle}>{selectedLead?.name}</Text>
-            <Text style={styles.detailPhone}>{selectedLead?.phone}</Text>
+            <Text style={styles.detailTitle}>{selectedLead?.name ?? 'No lead selected'}</Text>
+            <Text style={styles.detailPhone}>{selectedLead?.phone ?? 'No phone recorded'}</Text>
             <View style={styles.badgeRow}>
               <View style={[styles.tempBadge, styles.badgeHot]}><Text style={styles.tempText}>Hot Intent · 86</Text></View>
             </View>
@@ -206,7 +182,7 @@ export default function App() {
             <Text style={styles.detailMeta}>Source: {selectedLead?.source || 'Google Search'}</Text>
           </View>
 
-          <TouchableOpacity style={styles.primaryActionBtn} onPress={() => startCall(selectedLead)}>
+          <TouchableOpacity style={styles.primaryActionBtn} onPress={() => selectedLead && startCall(selectedLead)}>
             <Text style={styles.primaryActionText}>📞 Call Lead Now</Text>
           </TouchableOpacity>
 
@@ -222,8 +198,8 @@ export default function App() {
       {screen === 'active-call' && (
         <View style={styles.activeCallShell}>
           <Text style={styles.activeCallRecording}>● Recording with consent</Text>
-          <Text style={styles.activeCallName}>{selectedLead?.name}</Text>
-          <Text style={styles.activeCallMeta}>{selectedLead?.phone}</Text>
+          <Text style={styles.activeCallName}>{selectedLead?.name ?? 'No lead selected'}</Text>
+          <Text style={styles.activeCallMeta}>{selectedLead?.phone ?? 'No phone recorded'}</Text>
           <Text style={styles.activeCallTimer}>{formatTime(callSeconds)}</Text>
 
           <View style={styles.liveNotesBox}>
@@ -250,8 +226,14 @@ export default function App() {
               defaultValue="High intent for CRM rollout. Solution review confirmed for Saturday 11:30 AM."
             />
           </View>
-          <TouchableOpacity style={styles.primaryActionBtn} onPress={() => { Alert.alert('Saved', 'Call attached to Lead 360'); setScreen('home'); }}>
-            <Text style={styles.primaryActionText}>✓ Confirm & Attach to CRM</Text>
+          <TouchableOpacity style={styles.primaryActionBtn} onPress={async () => {
+            if (!selectedLead) return;
+            try {
+              await apiRequest<{ callAttemptId: string }>('/calls', { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey('call') }, body: JSON.stringify({ leadId: selectedLead.id, direction: 'outbound', disposition: 'answered' }) });
+              Alert.alert('Call saved', 'Add structured remarks from the current CRM workflow before it is considered complete.'); setScreen('lead-360');
+            } catch (error) { Alert.alert('Call not saved', error instanceof Error ? error.message : 'CRM request failed.'); }
+          }}>
+            <Text style={styles.primaryActionText}>✓ Confirm & save attempt</Text>
           </TouchableOpacity>
         </ScrollView>
       )}

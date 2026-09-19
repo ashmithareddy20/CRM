@@ -2,13 +2,18 @@ import { env } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 
+export type Database = ReturnType<typeof createDb>;
+
+/** Creates a request/test-local Drizzle client from an explicit D1 binding. */
+export function createDb(binding: D1Database) {
+  return drizzle(binding, { schema });
+}
+
+/** Compatibility wrapper for code running inside the Worker global environment. */
 export function getDb() {
   const databaseEnv = env as typeof env & { DB?: D1Database };
   if (!databaseEnv.DB) {
-    throw new Error(
-      "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
-    );
+    throw new Error("Cloudflare D1 binding `DB` is unavailable");
   }
-
-  return drizzle(databaseEnv.DB, { schema });
+  return createDb(databaseEnv.DB);
 }

@@ -1,292 +1,274 @@
 {
   "info": {
     "_postman_id": "trh360-crm-api-collection-2026",
-    "name": "TRH360 Universal CRM - Backend APIs",
-    "description": "Comprehensive Postman test collection for the TRH360 CRM Cloudflare Worker D1 backend APIs including Lead lifecycle, Users, Calls, Notes, and Health checks.",
+    "name": "TRH360 CRM \u2014 authenticated v1 API",
+    "description": "Canonical authenticated /api/v1 contract. Configure an HTTPS API origin, bearer test token only in non-production, and a tenant ID only when supported by the identity provider. Calls and remarks use real lead and membership IDs returned by the service; no client-supplied owner or role is trusted.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:5173",
+      "value": "https://crm.example.com",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
       "type": "string"
     },
     {
       "key": "leadId",
-      "value": "TRH-24190",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "callAttemptId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "sourceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "membershipId",
+      "value": "",
       "type": "string"
     }
   ],
   "item": [
     {
-      "name": "System & Health",
+      "name": "Health and authenticated workspace",
       "item": [
         {
-          "name": "1. Health Check",
+          "name": "Health",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "health"]
-            },
-            "description": "Verifies that the TRH360 backend service is healthy and active."
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Leads API",
-      "item": [
-        {
-          "name": "2. Get All Leads",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/leads",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads"]
-            },
-            "description": "Fetches all CRM leads stored in the D1 SQLite database, ordered by latest creation."
-          },
-          "response": []
-        },
-        {
-          "name": "3. Search & Filter Leads",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/leads?search=Lakshmi&status=qualified",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads"],
-              "query": [
-                {
-                  "key": "search",
-                  "value": "Lakshmi"
-                },
-                {
-                  "key": "status",
-                  "value": "qualified"
-                }
+              "raw": "{{baseUrl}}/api/v1/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "health"
               ]
             },
-            "description": "Filters leads by search query and lifecycle status."
+            "description": "Liveness only; no credentials required."
           },
           "response": []
         },
         {
-          "name": "4. Create New Lead (POST)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Arjun Varma\",\n  \"phone\": \"+91 98480 12345\",\n  \"email\": \"arjun.varma@example.com\",\n  \"source\": \"Website · Inbound\",\n  \"status\": \"new\",\n  \"ownerId\": \"Sravani\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/leads",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads"]
-            },
-            "description": "Creates a new lead record in the D1 database. The created record will be returned with its UUID."
-          },
-          "response": []
-        },
-        {
-          "name": "5. Get Single Lead By ID",
+          "name": "Current membership",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/leads/{{leadId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads", "{{leadId}}"]
-            },
-            "description": "Retrieves the full details for a single lead by ID."
-          },
-          "response": []
-        },
-        {
-          "name": "6. Update Lead (PATCH)",
-          "request": {
-            "method": "PATCH",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"qualified\",\n  \"source\": \"Google Search · Enterprise\"\n}"
-            },
             "url": {
-              "raw": "{{baseUrl}}/api/leads/{{leadId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads", "{{leadId}}"]
-            },
-            "description": "Updates specific fields on an existing lead in the database."
-          },
-          "response": []
-        },
-        {
-          "name": "7. Delete Lead (DELETE)",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/leads/{{leadId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "leads", "{{leadId}}"]
-            },
-            "description": "Deletes a lead and cascades deletion of its associated calls and notes."
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Users API",
-      "item": [
-        {
-          "name": "8. Get All Users",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/users",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "users"]
-            },
-            "description": "Fetches all system users/telecalling agents."
-          },
-          "response": []
-        },
-        {
-          "name": "9. Create User (POST)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Sravani K\",\n  \"email\": \"sravani@northstar.example\",\n  \"role\": \"agent\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/users",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "users"]
-            },
-            "description": "Registers a new agent or manager in the system."
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Calls & Telephony API",
-      "item": [
-        {
-          "name": "10. Get Calls for Lead",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/calls?leadId={{leadId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "calls"],
-              "query": [
-                {
-                  "key": "leadId",
-                  "value": "{{leadId}}"
-                }
+              "raw": "{{baseUrl}}/api/v1/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "me"
               ]
             },
-            "description": "Lists calls recorded for a lead."
+            "description": "Returns the authenticated tenant, membership, server-derived roles, and capabilities."
           },
           "response": []
         },
         {
-          "name": "11. Log New Call (POST)",
+          "name": "Logout",
           "request": {
             "method": "POST",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"leadId\": \"TRH-24190\",\n  \"agentId\": \"agent-1\",\n  \"direction\": \"outbound\",\n  \"outcome\": \"connected\",\n  \"durationSec\": 278\n}"
-            },
             "url": {
-              "raw": "{{baseUrl}}/api/calls",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "calls"]
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
             },
-            "description": "Logs an inbound or outbound call attempt and outcome."
+            "description": "Ends the browser session. Native clients discard their securely stored bearer token after success."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "Notes API",
+      "name": "Leads",
       "item": [
         {
-          "name": "12. Get Notes for Lead",
+          "name": "List leads",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/api/notes?leadId={{leadId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "notes"],
-              "query": [
-                {
-                  "key": "leadId",
-                  "value": "{{leadId}}"
-                }
+              "raw": "{{baseUrl}}/api/v1/leads?limit=25",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads?limit=25"
               ]
             },
-            "description": "Fetches chronological notes attached to a lead."
+            "description": "Tenant-scoped paginated lead summaries. Use returned IDs; do not manufacture owner, score, city, or clinical facts."
           },
           "response": []
         },
         {
-          "name": "13. Add Note to Lead (POST)",
+          "name": "Create lead",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "lead:{{guid}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
               }
             ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/leads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "leads"
+              ]
+            },
+            "description": "Requires a source ID and source provenance. Reuse the same idempotency key after an uncertain network outcome.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"leadId\": \"TRH-24190\",\n  \"authorId\": \"agent-1\",\n  \"content\": \"Spoke with decision maker Priya. Saturday solution review confirmed.\"\n}"
-            },
+              "raw": "{\n  \"name\": \"Example\",\n  \"phone\": \"+919999999999\",\n  \"sourceId\": \"{{sourceId}}\",\n  \"platform\": \"postman\",\n  \"origin\": \"manual\"\n}"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Calls and mandatory structured remarks",
+      "item": [
+        {
+          "name": "Record call attempt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "call:{{guid}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/api/notes",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "notes"]
+              "raw": "{{baseUrl}}/api/v1/calls",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls"
+              ]
             },
-            "description": "Appends a permanent note to the lead's Lead 360 record."
+            "description": "Creates a call attempt for the selected lead. Provider facts do not establish meaningful contact.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"direction\": \"outbound\",\n  \"disposition\": \"answered\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save structured remark",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "remark:{{guid}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/calls/{{callAttemptId}}/remarks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "calls",
+                "{{callAttemptId}}",
+                "remarks"
+              ]
+            },
+            "description": "Meaningful contact needs a statement. A next commitment requires its accountable membership ID and due time. Handle 409 by refreshing before retrying.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disposition\": \"meaningful_connection\",\n  \"patientStatement\": \"Patient requested a follow-up after reviewing information.\",\n  \"nextAction\": \"Confirm follow-up availability\",\n  \"nextActionOwnerMembershipId\": \"{{membershipId}}\",\n  \"nextActionDueAt\": \"2026-09-20T10:00:00+05:30\"\n}"
+            }
           },
           "response": []
         }

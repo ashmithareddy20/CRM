@@ -1,0 +1,25 @@
+name: Backend CI
+on:
+  pull_request:
+    paths: ["worker/**", "db/**", "drizzle/**", "tests/backend/**", "docs/backend/**", "wrangler.jsonc", ".github/workflows/backend-ci.yml"]
+  push:
+    branches: ["vorflux/complete-healthcare-crm-backend"]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEPLOYMENT_ENV: test
+      ALLOW_TEST_IDENTITY: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run test:backend
+      - run: npx drizzle-kit check
+      - name: Reject committed secrets and private identifiers
+        run: |
+          ! rg -n --hidden --glob '!node_modules/**' --glob '!package-lock.json' '(BEGIN (RSA|EC|OPENSSH) PRIVATE KEY|AIza[0-9A-Za-z_-]{20,}|sk_(live|test)_[A-Za-z0-9]+|\+?[0-9]{10,}|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})' worker docs/backend .dev.vars.example wrangler.jsonc

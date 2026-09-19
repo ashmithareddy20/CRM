@@ -17,9 +17,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import {
-  crmScreens, funnelStages, mockLeads, roleCounts,
+  crmScreens, funnelStages, roleCounts,
   type CrmScreen, type Experience, type ScreenRole,
 } from "./crm-data";
+import { ApiClient, apiErrorMessage, newIdempotencyKey, type LeadSummary } from "@/lib/api";
 
 type AppRole = "Agent" | "Manager" | "Leadership" | "Operations" | "Admin" | "Voice AI";
 
@@ -94,8 +95,10 @@ const roleNav: Record<AppRole, Array<{ label: string; id: string; icon: LucideIc
 };
 
 const temperatureClass: Record<string, string> = {
-  Hot: "status-hot", Warm: "status-warm", Cold: "status-cold", "Not connected": "status-neutral",
+  Hot: "status-hot", Warm: "status-warm", Cold: "status-cold", Unknown: "status-neutral",
 };
+
+const api = new ApiClient();
 
 const formatDuration = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
@@ -110,32 +113,30 @@ const formatIndiaDate = (value = new Date()) => indiaDateFormatter.format(value)
 const formatIndiaDateTime = (value: string | Date) => indiaDateTimeFormatter.format(new Date(value));
 
 export default function Home() {
-  const [role, setRole] = useState<AppRole>("Admin");
+  const [role, setRole] = useState<AppRole>("Agent");
   const [experience, setExperience] = useState<Experience>("desktop");
-  const [activeId, setActiveId] = useState("admin-control-tower");
+  const [activeId, setActiveId] = useState("agent-my-day");
   const [atlasOpen, setAtlasOpen] = useState(false);
   const [atlasSearch, setAtlasSearch] = useState("");
   const [callSeconds, setCallSeconds] = useState(278);
   const [notice, setNotice] = useState<string | null>(null);
-  const [leads, setLeads] = useState<DisplayLead[]>(mockLeads);
+  const [leads, setLeads] = useState<DisplayLead[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const activeScreen = crmScreens.find((screen) => screen.id === activeId) ?? crmScreens[0];
 
   useEffect(() => {
-    const loadLeads = () => fetch("/api/leads")
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Unable to load leads");
-        return response.json() as Promise<{ success: boolean; data: ApiLead[] }>;
-      })
-      .then((result) => {
-        if (result.success) setLeads(result.data.map(mapApiLead));
-      })
-      .catch(() => undefined);
-
-    loadLeads();
-    const refreshTimer = window.setInterval(loadLeads, 5000);
-    return () => window.clearInterval(refreshTimer);
+    let active = true;
+    const loadLeads = async () => {
+      try {
+        const page = await api.leads();
+        if (active) { setLeads(page.items.map(mapApiLead)); setLoadError(null); }
+      } catch (error) {
+        if (active) { setLeads([]); setLoadError(apiErrorMessage(error)); }
+      }
+    };
+    void loadLeads();
+    return () => { active = false; };
   }, []);
-
   useEffect(() => {
     if (activeId !== "mobile-active-call") return;
     const timer = window.setInterval(() => setCallSeconds((value) => value + 1), 1000);
@@ -168,7 +169,7 @@ export default function Home() {
       {experience === "desktop" ? (
         <div className="desktop-shell">
           <DesktopSidebar role={role} activeId={activeId} changeRole={changeRole} openScreen={openScreen} openAtlas={() => setAtlasOpen(true)} />
-          <section className="desktop-content"><DesktopScreen screen={activeScreen} openScreen={openScreen} notify={notify} leads={leads} onLeadCreated={(lead) => setLeads((current) => [lead, ...current.filter((item) => item.id !== lead.id)])} /></section>
+          {loadError && <p className="page-description" role="alert">{loadError}</p>}<section className="desktop-content"><DesktopScreen screen={activeScreen} openScreen={openScreen} notify={notify} leads={leads} onLeadCreated={(lead) => setLeads((current) => [lead, ...current.filter((item) => item.id !== lead.id)])} /></section>
         </div>
       ) : <MobileWorkspace activeId={activeId} openScreen={openScreen} callSeconds={callSeconds} notify={notify} leads={leads} />}
       {atlasOpen && <ScreenAtlas search={atlasSearch} setSearch={setAtlasSearch} activeId={activeId} openScreen={openScreen} close={() => setAtlasOpen(false)} />}
@@ -239,7 +240,7 @@ function DesktopScreen({ screen, openScreen, notify, leads, onLeadCreated }: { s
 }
 
 function AgentWorkspace({ openScreen, leads }: { openScreen: (id: string) => void; leads: DisplayLead[] }) {
-  const queue = leads.slice(0, 4).map((lead) => [lead.name, lead.concern, lead.next, lead.temperature, lead.last] as const);
+  const queue = leads.slice(0, 4).map((lead) => [lead.name, lead.stage, lead.next, lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown", lead.last] as const);
   return <div className="page-stack agent-simple-page">
     <PageHeader eyebrow={`Telecalling workspace · ${formatIndiaDate()}`} title="Your work, in order." description="Call the next person, record the outcome, and move to the next commitment.">
       <Button variant="outline" onClick={() => openScreen("agent-new-lead")}><Plus /> Add lead</Button>
@@ -451,27 +452,19 @@ function CreateLeadWorkflow({ openScreen, onLeadCreated, notify }: { openScreen:
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
-          email: email.trim(),
-          source,
-          status: "new",
-          ownerId: "agent-1",
-        }),
-      });
-
-      if (!response.ok) throw new Error("Unable to save lead");
-      const result = await response.json() as { success: boolean; data: ApiLead };
-      if (!result.success) throw new Error("Unable to save lead");
-      onLeadCreated(mapApiLead(result.data));
-      notify?.(`Lead "${result.data.name}" created and saved to backend database!`);
+      const result = await api.createLead({
+        name: name.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        sourceId: source.trim(),
+        platform: "web",
+        origin: "manual",
+      }, newIdempotencyKey("lead"));
+      onLeadCreated(mapApiLead(result));
+      notify?.(`Lead "${result.name ?? "record"}" created and saved.`);
       openScreen("agent-my-leads");
-    } catch {
-      setError("The lead could not be saved. Check that the backend is running.");
+    } catch (error) {
+      setError(apiErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -496,105 +489,55 @@ function ManagerCockpit({ openScreen }: { openScreen: (id: string) => void }) {
   </div>;
 }
 
-type ApiTask = { id: string; leadId: string; title: string; dueAt: string; status: string };
-type ApiAppointment = { id: string; leadId: string; startsAt: string; mode: string; status: string };
-type ApiCall = { id: string; leadId: string; outcome: string; durationSec?: number | null; createdAt: string };
-
-function apiFetch<T>(url: string, options?: RequestInit) {
-  return fetch(url, options).then(async (response) => {
-    const result = await response.json() as { success: boolean; data?: T; message?: string };
-    if (!response.ok || !result.success) throw new Error(result.message ?? "Request failed");
-    return result.data as T;
-  });
+function AgentTasks({ leads }: { leads: DisplayLead[]; notify?: (message: string) => void }) {
+  return <div className="page-stack"><PageHeader eyebrow={`Telecalling workspace · ${formatIndiaDate()}`} title="Daily tasks" description="Task actions appear here when the authenticated task queue is available." /><section className="panel"><PanelHeader title="My task queue" subtitle="No task list contract is available for this workspace." /><p>{leads.length ? "Select a lead and save its next commitment from a structured call remark." : "No accessible leads are available."}</p></section></div>;
 }
 
-function AgentTasks({ leads, notify }: { leads: DisplayLead[]; notify: (message: string) => void }) {
-  const [tasks, setTasks] = useState<ApiTask[]>([]);
-  useEffect(() => { apiFetch<ApiTask[]>("/api/tasks?assigneeId=agent-1").then(setTasks).catch(() => undefined); }, []);
-  const updateTask = (task: ApiTask) => apiFetch<ApiTask>(`/api/tasks/${task.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: task.status === "done" ? "open" : "done" }) }).then((updated) => setTasks((current) => current.map((item) => item.id === updated.id ? updated : item))).catch(() => notify("Task could not be updated"));
-  const addTask = () => { const lead = leads[0]; if (!lead?.apiId) return; apiFetch<ApiTask>("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leadId: lead.apiId, assigneeId: "agent-1", title: "Follow up with " + lead.name, dueAt: new Date(Date.now() + 3600000).toISOString() }) }).then((task) => { setTasks((current) => [task, ...current]); notify("Task created"); }).catch(() => notify("Task could not be created")); };
-  return <div className="page-stack"><PageHeader eyebrow={`Telecalling workspace · ${formatIndiaDate()}`} title="Daily tasks" description="Every commitment has an owner, due time, and completion state."><Button className="primary-action" onClick={addTask}><Plus /> Add task</Button></PageHeader><div className="summary-strip"><div><span>Open</span><strong>{tasks.filter((task) => task.status !== "done").length}</strong></div><div><span>Completed</span><strong>{tasks.filter((task) => task.status === "done").length}</strong></div><div><span>Due today</span><strong>{tasks.length}</strong></div></div><section className="panel"><PanelHeader title="My task queue" subtitle="Synced from the CRM backend" />{tasks.length ? tasks.map((task) => <button className="task-card" key={task.id} onClick={() => updateTask(task)}><span className={task.status === "done" ? "done" : ""}>{task.status === "done" ? <Check size={15} /> : <Clock3 size={15} />}</span><div><strong>{task.title}</strong><small>{formatIndiaDateTime(task.dueAt)}</small></div><Badge variant="outline">{task.status === "done" ? "Done" : "Open"}</Badge></button>) : <p>No tasks yet. Add the next commitment from this screen.</p>}</section></div>;
-}
-
-function AgentCalendar({ leads, notify }: { leads: DisplayLead[]; notify: (message: string) => void }) {
-  const [appointments, setAppointments] = useState<ApiAppointment[]>([]);
-  useEffect(() => { apiFetch<ApiAppointment[]>("/api/appointments?ownerId=agent-1").then(setAppointments).catch(() => undefined); }, []);
-  const book = () => { const lead = leads[0]; if (!lead?.apiId) return; const startsAt = new Date(Date.now() + 86400000); startsAt.setHours(11, 30, 0, 0); apiFetch<ApiAppointment>("/api/appointments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leadId: lead.apiId, ownerId: "agent-1", startsAt: startsAt.toISOString(), mode: "online" }) }).then((appointment) => { setAppointments((current) => [appointment, ...current]); notify("Appointment booked"); }).catch(() => notify("Appointment could not be booked")); };
-  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace" title="Appointments" description="Keep every promised meeting connected to its lead journey."><Button className="primary-action" onClick={book}><Plus /> Book appointment</Button></PageHeader><section className="panel"><PanelHeader title="Upcoming appointments" subtitle="India Standard Time" />{appointments.length ? appointments.map((appointment) => <div className="protocol-row" key={appointment.id}><CalendarDays size={18} /><div><b>{leads.find((lead) => lead.apiId === appointment.leadId)?.name ?? "CRM lead"}</b><small>{formatIndiaDateTime(appointment.startsAt)} · {appointment.mode}</small></div><Badge variant="outline">{appointment.status}</Badge></div>) : <p>No appointments booked yet.</p>}</section></div>;
+function AgentCalendar({ leads }: { leads: DisplayLead[]; notify?: (message: string) => void }) {
+  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace" title="Appointments" description="Appointments are shown after a permitted schedule query is available." /><section className="panel"><PanelHeader title="Upcoming appointments" subtitle="No appointment list contract is available for this workspace." /><p>{leads.length ? "Choose an accessible lead before booking an appointment." : "No accessible leads are available."}</p></section></div>;
 }
 
 function AgentRecovery({ leads, openScreen }: { leads: DisplayLead[]; openScreen: (id: string) => void }) {
-  const recoveryLeads = leads.filter((lead) => lead.temperature === "Not connected" || lead.next === "Call now");
-  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace · Recovery" title="Recovery queue" description="Prioritize untouched and overdue opportunities before intent decays."><Badge variant="outline">{recoveryLeads.length} leads</Badge></PageHeader><section className="panel"><PanelHeader title="Needs recovery now" subtitle="Sorted by next commitment and response risk" />{recoveryLeads.length ? recoveryLeads.map((lead) => <button className="simple-call-row" key={lead.id} onClick={() => openScreen("agent-lead-360")}><span className="queue-order"><CircleAlert size={16} /></span><div><strong>{lead.name}</strong><small>{lead.phone} · {lead.source}</small></div><Badge variant="outline" className={temperatureClass[lead.temperature]}>{lead.temperature}</Badge><span className="danger-text">{lead.next}</span></button>) : <p>No recovery leads right now.</p>}</section></div>;
+  const recoveryLeads = leads.filter((lead) => lead.next === "No next commitment");
+  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace · Recovery" title="Recovery queue" description="Records without a next commitment need review." /><section className="panel"><PanelHeader title="Needs review" subtitle="From authenticated lead summaries" />{recoveryLeads.length ? recoveryLeads.map((lead) => <button className="simple-call-row" key={lead.id} onClick={() => openScreen("agent-lead-360")}><span className="queue-order"><CircleAlert size={16} /></span><div><strong>{lead.name}</strong><small>{lead.source}</small></div><span className="danger-text">{lead.next}</span></button>) : <p>No accessible records need a new commitment.</p>}</section></div>;
 }
 
 function AgentPerformance({ leads }: { leads: DisplayLead[] }) {
-  const [calls, setCalls] = useState<ApiCall[]>([]);
-  useEffect(() => { apiFetch<ApiCall[]>("/api/calls").then(setCalls).catch(() => undefined); }, []);
-  const connected = calls.filter((call) => call.outcome !== "pending").length;
-  const completed = calls.filter((call) => ["connected", "qualified", "converted"].includes(call.outcome)).length;
-  const minutes = Math.round(calls.reduce((total, call) => total + (call.durationSec ?? 0), 0) / 60);
-  return <div className="page-stack"><PageHeader eyebrow={`Agent intelligence · ${formatIndiaDate()}`} title="My performance" description="Evidence-led analysis from your persisted leads and call activity."><Button variant="outline"><Download /> Export report</Button></PageHeader><div className="metric-grid four"><MetricCard label="Leads in scope" value={String(leads.length)} delta="Live" detail="from shared CRM" icon={UsersRound} /><MetricCard label="Calls logged" value={String(calls.length)} delta={connected ? `${Math.round((connected / Math.max(calls.length, 1)) * 100)}%` : "0%"} detail="with outcome" icon={PhoneCall} /><MetricCard label="Meaningful calls" value={String(completed)} delta="Persisted" detail="connected or qualified" icon={Target} /><MetricCard label="Talk time" value={`${minutes}m`} delta="IST" detail="recorded duration" icon={Clock3} /></div><div className="content-grid analytics-template"><section className="panel"><PanelHeader title="Call outcomes" subtitle="Current backend records" />{["connected", "qualified", "converted", "pending"].map((outcome) => { const count = calls.filter((call) => call.outcome === outcome).length; return <div className="signal-row" key={outcome}><div><strong>{outcome}</strong><span>{count} calls</span></div><Progress value={calls.length ? (count / calls.length) * 100 : 0} /><Badge variant="outline">{count}</Badge></div>; })}</section><section className="panel"><PanelHeader title="Next improvement" subtitle="Based on current evidence" /><Finding number="01" title={calls.length ? "Keep recording outcomes" : "Log your first call"} text={calls.length ? "Every outcome improves your conversion and coaching view." : "Use Call now, then confirm the outcome to make this dashboard meaningful."} evidence="Open call queue" /></section></div></div>;
+  return <div className="page-stack"><PageHeader eyebrow={`Agent workspace · ${formatIndiaDate()}`} title="My performance" description="Performance metrics are available from authorized reporting endpoints." /><section className="panel"><PanelHeader title="Accessible lead scope" subtitle="Current authenticated data" /><p>{leads.length} lead summaries currently available.</p></section></div>;
 }
 
 function AgentFollowUp({ leads, notify }: { leads: DisplayLead[]; notify: (message: string) => void }) {
-  const [saving, setSaving] = useState(false);
   const lead = leads[0];
-  const save = () => { if (!lead?.apiId) return; setSaving(true); apiFetch<ApiTask>("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leadId: lead.apiId, assigneeId: "agent-1", title: "Complete follow-up with " + lead.name, dueAt: new Date(Date.now() + 3600000).toISOString() }) }).then(() => notify("Follow-up saved")).catch(() => notify("Follow-up could not be saved")).finally(() => setSaving(false)); };
-  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace · Follow-up" title="Complete follow-up" description="Save the next commitment so it appears in Tasks and Recovery."><Button className="primary-action" disabled={saving} onClick={save}><Check /> {saving ? "Saving..." : "Save follow-up"}</Button></PageHeader><section className="panel form-panel"><div className="form-grid"><Field label="Lead" value={lead?.name ?? "No lead selected"} /><Field label="Owner" value="Sravani · agent-1" /><Field label="Outcome" value="Connected · positive" /><Field label="Next due" value={formatIndiaDateTime(new Date(Date.now() + 3600000))} /></div><label className="wide-field">Structured remark<textarea rows={5} defaultValue="Follow-up completed. Confirm the next commitment and preserve the evidence in the CRM timeline." /></label></section></div>;
+  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace · Follow-up" title="Complete follow-up" description="Use the structured call remark to save a next commitment." ><Button className="primary-action" disabled={!lead} onClick={() => notify("Open the selected lead's call review to save its structured remark.")}><Check /> Open call review</Button></PageHeader><section className="panel form-panel"><div className="form-grid"><Field label="Lead" value={lead?.name ?? "No lead selected"} /><Field label="Owner" value={lead?.agent ?? "Unassigned"} /></div></section></div>;
 }
 
 function AgentBookAppointment({ leads, notify }: { leads: DisplayLead[]; notify: (message: string) => void }) {
   const lead = leads[0];
-  const book = () => { if (!lead?.apiId) return; const startsAt = new Date(Date.now() + 86400000); startsAt.setHours(11, 30, 0, 0); apiFetch<ApiAppointment>("/api/appointments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ leadId: lead.apiId, ownerId: "agent-1", startsAt: startsAt.toISOString(), mode: "online" }) }).then(() => notify("Appointment booked")).catch(() => notify("Appointment could not be booked")); };
-  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace · Booking" title="Book appointment" description="Create a confirmed meeting for the next available slot."><Button className="primary-action" onClick={book}><CalendarDays /> Confirm appointment</Button></PageHeader><section className="panel form-panel"><div className="form-grid"><Field label="Lead" value={lead?.name ?? "No lead selected"} /><Field label="Mode" value="Online video call" /><Field label="Date" value={formatIndiaDate(new Date(Date.now() + 86400000))} /><Field label="Time" value="11:30 AM IST" /></div></section></div>;
+  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace · Booking" title="Book appointment" description="Booking needs a server-provided doctor, branch, and available slot." ><Button className="primary-action" disabled={!lead} onClick={() => notify("Select a server-provided doctor and availability before booking.")}><CalendarDays /> Review availability</Button></PageHeader><section className="panel form-panel"><Field label="Lead" value={lead?.name ?? "No lead selected"} /></section></div>;
 }
+
 
 function MetricCard({ label, value, delta, detail, icon: Icon }: { label: string; value: string; delta: string; detail: string; icon: LucideIcon }) { return <article className="metric-card"><div className="metric-top"><span>{label}</span><div className="metric-icon"><Icon size={17} /></div></div><strong className="metric-value">{value}</strong><div className="metric-bottom"><b>{delta}</b><span>{detail}</span></div></article>; }
 function PanelHeader({ title, subtitle, action, onAction }: { title: string; subtitle?: string; action?: string; onAction?: () => void }) { return <div className="panel-header"><div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action && <button onClick={onAction}>{action} <ChevronRight size={15} /></button>}</div>; }
+function Field({ label, value }: { label: string; value: string }) { return <label className="field"><span>{label}</span><input defaultValue={value} /></label>; }
+function Finding({ number, title, text, evidence }: { number: string; title: string; text: string; evidence: string }) { return <div className="finding"><span>{number}</span><div><strong>{title}</strong><p>{text}</p><button>{evidence} <ChevronRight size={13} /></button></div></div>; }
+function Decision({ priority, title, detail }: { priority: string; title: string; detail: string }) { return <div className="decision"><span>{priority}</span><div><strong>{title}</strong><p>{detail}</p></div></div>; }
 
-type DisplayLead = (typeof mockLeads)[number] & { apiId?: string; createdAt?: string | null };
+type DisplayLead = { id: string; apiId: string; name: string; phone: string; source: string; stage: string; qualification: string; next: string; last: string; agent: string; createdAt?: string | null };
 
-type ApiLead = {
-  id: string;
-  name: string;
-  phone?: string | null;
-  email?: string | null;
-  source?: string | null;
-  status?: string | null;
-  ownerId?: string | null;
-  createdAt?: string | null;
-};
-
-function mapApiLead(lead: ApiLead): DisplayLead {
-  const existing = mockLeads.find((m) => m.id === lead.id);
-  if (existing) {
-    return {
-      ...existing,
-      apiId: lead.id,
-      name: lead.name || existing.name,
-      phone: lead.phone || existing.phone,
-      source: lead.source || existing.source,
-      temperature: lead.status === "new" ? "Not connected" : lead.status === "qualified" ? "Hot" : "Warm",
-      createdAt: lead.createdAt,
-    };
-  }
-  const temperature = lead.status === "new" ? "Not connected" : lead.status === "qualified" ? "Hot" : "Warm";
-  const displayId = lead.id.startsWith("TRH-") ? lead.id : `TRH-${lead.id.slice(0, 5).toUpperCase()}`;
+function mapApiLead(lead: LeadSummary): DisplayLead {
   return {
-    id: displayId,
+    id: lead.id,
     apiId: lead.id,
-    name: lead.name,
+    name: lead.name?.trim() || "Unnamed lead",
     phone: lead.phone ?? "",
-    city: "Hyderabad",
-    concern: "New CRM enquiry",
-    source: lead.source ?? "Manual",
-    agent: lead.ownerId === "agent-1" ? "Sravani" : (lead.ownerId || "Sravani"),
-    temperature,
-    next: temperature === "Not connected" ? "Call now" : "Follow up",
-    last: lead.createdAt ? formatIndiaDateTime(lead.createdAt) : "Just now",
+    source: lead.source ?? lead.sourceId ?? "Source not recorded",
+    stage: lead.lifecycleStage ?? "received",
+    qualification: lead.qualification ?? "Unknown",
+    next: lead.nextAction?.action ?? "No next commitment",
+    last: lead.updatedAt || lead.createdAt ? formatIndiaDateTime(lead.updatedAt ?? lead.createdAt!) : "Not recorded",
+    agent: lead.assignedMembershipId ?? "Unassigned",
     createdAt: lead.createdAt,
-    score: temperature === "Hot" ? 86 : temperature === "Warm" ? 62 : 35,
   };
 }
 
@@ -604,14 +547,14 @@ function MyLeads({ openScreen, leads }: { openScreen: (id: string) => void; lead
   const visibleLeads = leads.filter((lead) => {
     const haystack = `${lead.name} ${lead.phone} ${lead.source} ${lead.agent}`.toLowerCase();
     const matchesSearch = haystack.includes(search.trim().toLowerCase());
-    const matchesFilter = filter === "all" || (filter === "new" && lead.temperature === "Not connected") || (filter === "qualified" && lead.temperature === "Hot") || (filter === "contacted" && lead.temperature === "Warm");
+    const matchesFilter = filter === "all" || (filter === "new" && lead.stage === "received") || (filter === "qualified" && lead.qualification === "hot") || (filter === "contacted" && lead.stage !== "received");
     return matchesSearch && matchesFilter;
   });
 
-  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace" title="My leads" description="A prioritized queue based on intent, SLA risk, and next commitment."><Button variant="outline"><Upload /> Import</Button><Button className="primary-action" onClick={() => openScreen("agent-new-lead")}><Plus /> Create lead</Button></PageHeader><div className="summary-strip">{[["Assigned today",String(leads.length)],["Call now",String(leads.filter((lead) => lead.next === "Call now").length)],["Follow-ups due","0"],["Appointments","0"],["SLA at risk","0"]].map(([label,value],index) => <div key={label} className={index===4?"danger":""}><span>{label}</span><strong>{value}</strong></div>)}</div><section className="panel leads-panel"><div className="filter-toolbar"><div className="table-tabs"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>All leads <span>{leads.length}</span></button><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}>Uncontacted <span>{leads.filter((lead) => lead.temperature === "Not connected").length}</span></button></div><div className="toolbar-actions"><div className="mini-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or mobile" /></div><select aria-label="Filter leads" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}><option value="all">All statuses</option><option value="new">New</option><option value="qualified">Hot / qualified</option><option value="contacted">Contacted</option></select><Button variant="outline" size="sm" onClick={() => { setSearch(""); setFilter("all"); }}><RotateCcw /> Reset</Button></div></div><LeadTable openScreen={openScreen} leads={visibleLeads} /></section></div>;
+  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace" title="My leads" description="A prioritized queue based on intent, SLA risk, and next commitment."><Button variant="outline"><Upload /> Import</Button><Button className="primary-action" onClick={() => openScreen("agent-new-lead")}><Plus /> Create lead</Button></PageHeader><div className="summary-strip">{[["Assigned today",String(leads.length)],["Call now",String(leads.filter((lead) => lead.next === "Call now").length)],["Follow-ups due","0"],["Appointments","0"],["SLA at risk","0"]].map(([label,value],index) => <div key={label} className={index===4?"danger":""}><span>{label}</span><strong>{value}</strong></div>)}</div><section className="panel leads-panel"><div className="filter-toolbar"><div className="table-tabs"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>All leads <span>{leads.length}</span></button><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}>Uncontacted <span>{leads.filter((lead) => lead.stage === "received").length}</span></button></div><div className="toolbar-actions"><div className="mini-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or mobile" /></div><select aria-label="Filter leads" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}><option value="all">All statuses</option><option value="new">New</option><option value="qualified">Hot / qualified</option><option value="contacted">Contacted</option></select><Button variant="outline" size="sm" onClick={() => { setSearch(""); setFilter("all"); }}><RotateCcw /> Reset</Button></div></div><LeadTable openScreen={openScreen} leads={visibleLeads} /></section></div>;
 }
 
-function LeadTable({ openScreen, leads = mockLeads }: { openScreen: (id: string) => void; leads?: DisplayLead[] }) { return <div className="lead-table"><div className="lead-row lead-head"><span>Lead</span><span>Need & source</span><span>Intent</span><span>Last touch</span><span>Next commitment</span><span>Owner</span><span /></div>{leads.map((lead) => <div className="lead-row" key={lead.id} onClick={() => openScreen("agent-lead-360")}><span className="lead-identity"><span className="mini-avatar">{lead.name.split(" ").map((part) => part[0]).join("").slice(0,2)}</span><span><b>{lead.name}</b><small>{lead.id} · {lead.city}</small></span></span><span><b>{lead.concern}</b><small>{lead.source}</small></span><span><Badge variant="outline" className={temperatureClass[lead.temperature]}>{lead.temperature}</Badge><small>Score {lead.score}/100</small></span><span><b>{lead.last}</b><small>{lead.temperature === "Not connected" ? "No conversation yet" : "Call · 4m 38s"}</small></span><span><b className={lead.next === "Call now" ? "danger-text" : ""}>{lead.next}</b><small>{lead.next === "Call now" ? "SLA crossed by 03:18" : "Committed follow-up"}</small></span><span className="owner-cell"><span className="mini-avatar pale">{lead.agent.slice(0,2).toUpperCase()}</span><b>{lead.agent}</b></span><span><Button size="icon-sm" variant="outline" aria-label={`Edit ${lead.name}`} onClick={async (event) => { event.stopPropagation(); const name = window.prompt("Lead name", lead.name); if (!name?.trim() || !lead.apiId) return; await fetch(`/api/leads/${lead.apiId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim() }) }); }}><Settings size={14} /></Button><Button size="icon-sm" className="call-action" aria-label={`Call ${lead.name}`} onClick={(event) => { event.stopPropagation(); openScreen("mobile-active-call"); }}><Phone size={15} /></Button></span></div>)}</div>; }
+function LeadTable({ openScreen, leads = [] }: { openScreen: (id: string) => void; leads?: DisplayLead[] }) { return <div className="lead-table"><div className="lead-row lead-head"><span>Lead</span><span>Need & source</span><span>Intent</span><span>Last touch</span><span>Next commitment</span><span>Owner</span><span /></div>{leads.map((lead) => <div className="lead-row" key={lead.id} onClick={() => openScreen("agent-lead-360")}><span className="lead-identity"><span className="mini-avatar">{lead.name.split(" ").map((part) => part[0]).join("").slice(0,2)}</span><span><b>{lead.name}</b><small>{lead.id}</small></span></span><span><b>{lead.stage}</b><small>{lead.source}</small></span><span><Badge variant="outline" className={temperatureClass[lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown"]}>{lead.qualification}</Badge><small>Server classification</small></span><span><b>{lead.last}</b><small>{"Timeline data is not loaded"}</small></span><span><b className={lead.next === "No next commitment" ? "danger-text" : ""}>{lead.next}</b><small>{lead.next === "No next commitment" ? "Needs an explicit commitment" : "Committed follow-up"}</small></span><span className="owner-cell"><span className="mini-avatar pale">{lead.agent.slice(0,2).toUpperCase()}</span><b>{lead.agent}</b></span><span><Button size="icon-sm" className="call-action" aria-label={`Call ${lead.name}`} onClick={(event) => { event.stopPropagation(); openScreen("mobile-active-call"); }}><Phone size={15} /></Button></span></div>)}</div>; }
 
 function Lead360({ openScreen }: { openScreen: (id: string) => void }) {
   return <div className="page-stack">
@@ -640,17 +583,14 @@ function RemarkField({ number, label, value, evidence }: { number: string; label
 function FunnelDashboard({ openScreen }: { openScreen: (id: string) => void }) { return <div className="page-stack"><PageHeader eyebrow="Conversion intelligence" title="Where is the funnel leaking?" description="Trace every loss from source to final conversion, then inspect the evidence."><Button variant="outline"><Download /> Export analysis</Button><Button className="primary-action" onClick={() => openScreen("owner-drill-down")}><GitBranch /> Open drill-down</Button></PageHeader><div className="filter-ribbon"><button>Last 30 days <ChevronDown size={14} /></button><button>All branches <ChevronDown size={14} /></button><button>All departments <ChevronDown size={14} /></button><button>All sources <ChevronDown size={14} /></button><span>Updated 4 min ago</span></div><div className="funnel-page-grid"><section className="panel full-funnel-panel"><PanelHeader title="Lifecycle funnel" subtitle="2,864 sourced leads · 218 conversions" /><div className="full-funnel">{funnelStages.map((stage,index)=><div className="full-funnel-stage" key={stage.label}><div><span>{stage.label}</span><strong>{stage.value.toLocaleString("en-IN")}</strong><small>{index===0?"All sourced leads":`${stage.rate}% stage conversion`}</small></div>{index<funnelStages.length-1&&<span className="drop-marker"><ArrowDown size={13} /> {Math.round((1-funnelStages[index+1].value/stage.value)*100)}% drop</span>}</div>)}</div></section><section className="panel leak-reasons"><PanelHeader title="Why qualified leads do not book" subtitle="650 lost at this stage" />{[["Financial concern",31,"201 leads"],["Family confirmation",23,"149 leads"],["Unable to reach again",18,"117 leads"],["Doctor preference",12,"78 leads"],["Location / travel",9,"59 leads"],["No valid reason",7,"46 leads"]].map(([label,value,count])=><div className="reason-bar" key={label}><div><span>{label}</span><b>{count}</b></div><div><i style={{width:`${Number(value)*2.8}%`}} /></div><small>{value}%</small></div>)}<button className="evidence-button" onClick={() => openScreen("manager-conversation")}><Headphones size={16} /> Review calls behind these reasons <ArrowRight size={14} /></button></section></div><section className="panel"><PanelHeader title="Stage leak matrix" subtitle="Click any cell to inspect leads, calls, objections, and owners" /><div className="matrix-table"><div className="matrix-row head"><span>Segment</span><span>Received → Connected</span><span>Connected → Qualified</span><span>Qualified → Appt.</span><span>Appt. → Visit</span><span>Visit → Convert</span></div>{[["Orthopaedics","18%","29%","51%","31%","48%"],["Cardiology","21%","32%","42%","34%","39%"],["IVF","16%","24%","38%","29%","35%"],["General surgery","27%","36%","47%","41%","52%"]].map((row)=><div className="matrix-row" key={row[0]}>{row.map((cell,index)=><button key={cell} className={index>0&&Number(cell.replace("%",""))>40?"hot-cell":""}>{cell}</button>)}</div>)}</div></section></div>; }
 
 function ConversationIntelligence() { return <div className="page-stack"><PageHeader eyebrow="Ask your CRM" title="Conversation intelligence" description="Ask plain-language questions across calls, transcripts, outcomes, and patient journeys."><Button variant="outline"><Download /> Export findings</Button></PageHeader><section className="conversation-hero panel"><div className="conversation-prompt"><div className="ai-orb large"><Sparkles size={23} /></div><div><span>Ask TRH360 Intelligence</span><textarea defaultValue="Why did orthopaedic conversions fall in Warangal during the last 15 days?" rows={2} /></div><Button className="primary-action"><ArrowRight /></Button></div><div className="prompt-suggestions"><button>Which agents misclassified Hot leads?</button><button>Show price objections with evidence</button><button>Compare Google vs Meta lead quality</button></div></section><div className="content-grid intelligence-grid"><section className="panel answer-panel"><div className="answer-heading"><Sparkles size={18} /><div><span>Evidence-backed answer</span><small>Analyzed 418 leads · 1,206 calls</small></div></div><h2>Conversion fell mainly after qualification—not because lead quality declined.</h2><p>Qualified-to-appointment conversion decreased from <b>58% to 41%</b>. The strongest contributing pattern was delayed financial follow-up after patients asked about surgery cost.</p><div className="finding-list"><Finding number="01" title="Financial follow-up was 19 hours slower" text="31 high-intent patients asked for cost or EMI details. Only 12 received information in the same working day." evidence="64 call moments" /><Finding number="02" title="Seven Hot leads were marked Warm" text="Transcript language showed explicit timelines and appointment intent, but agents selected a lower temperature." evidence="7 journeys" /><Finding number="03" title="Meta promise and call script diverged" text="The ad mentions a free second opinion. Agents did not acknowledge it in 68% of connected calls." evidence="46 calls" /></div></section><aside className="panel evidence-rail"><PanelHeader title="Source evidence" subtitle="Open any citation" />{[["Call · Lakshmi N.","00:24","Cost before Dasara"],["Call · Ramesh K.","01:12","EMI requested"],["WhatsApp · Anitha","18h delay","Brochure sent"],["Campaign · Meta OR-04","Ad","Free second opinion"]].map((row)=><button className="citation-card" key={row[0]}><div><FileAudio size={16} /><span><strong>{row[0]}</strong><small>{row[2]}</small></span></div><b>{row[1]}</b></button>)}<div className="confidence-card"><div><span>Answer confidence</span><strong>92%</strong></div><Progress value={92} /><small>Claims with insufficient evidence are clearly marked.</small></div></aside></div></div>; }
-function Finding({ number, title, text, evidence }: { number: string; title: string; text: string; evidence: string }) { return <div className="finding"><span>{number}</span><div><strong>{title}</strong><p>{text}</p><button>{evidence} <ChevronRight size={13} /></button></div></div>; }
 
 function FounderDashboard({ openScreen }: { openScreen: (id: string) => void }) { return <div className="page-stack executive-page"><PageHeader eyebrow="Leadership view · Last 30 days" title="Growth is healthy. The next gain is operational." description="Revenue is up 11.8%, but ₹27.4L of recoverable opportunity is waiting in follow-up."><Button variant="outline"><CalendarDays /> Schedule brief</Button><Button className="primary-action" onClick={() => openScreen("owner-diagnostic")}><Sparkles /> Generate 15-day memo</Button></PageHeader><div className="executive-scoreboard"><div><span>Attributed revenue</span><strong>₹1.84 Cr</strong><small>+11.8% vs previous period</small></div><div><span>Lead-to-conversion</span><strong>7.6%</strong><small>+0.9 percentage points</small></div><div><span>Cost per conversion</span><strong>₹4,820</strong><small>₹310 improvement</small></div><div className="opportunity"><span>Recoverable opportunity</span><strong>₹27.4L</strong><small>84 leads · action required</small></div></div><div className="executive-grid"><section className="panel"><PanelHeader title="What changed" subtitle="90-day revenue and conversion trajectory" action="Open trend" onAction={() => openScreen("owner-trend")} /><div className="trend-chart"><div className="chart-axis"><span>₹2.0 Cr</span><span>₹1.5 Cr</span><span>₹1.0 Cr</span><span>₹0.5 Cr</span></div><svg viewBox="0 0 700 220" preserveAspectRatio="none" aria-label="Revenue trend"><path d="M0,185 C90,170 120,142 195,151 C280,164 305,112 380,120 C462,129 482,78 560,90 C625,100 660,48 700,38" fill="none" stroke="#0b2545" strokeWidth="4" /><path d="M0,198 C80,192 125,187 195,175 C274,164 322,168 380,145 C463,112 500,138 560,111 C630,82 662,94 700,64" fill="none" stroke="#d09a26" strokeWidth="3" strokeDasharray="8 7" /></svg><div className="chart-legend"><span><i className="navy" /> Revenue</span><span><i className="gold" /> Conversion value</span></div></div></section><section className="panel leadership-brief"><div className="ai-brief-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><span>Leadership brief</span><h2>Three decisions this week</h2></div></div><Decision priority="01" title="Do not increase Meta spend yet" detail="Lead quality is stable; qualified-to-meeting follow-up is the constraint." /><Decision priority="02" title="Deploy commercial-support coverage" detail="Weekend price enquiries wait 14.6 hours longer and convert 38% worse." /><Decision priority="03" title="Recover 84 evidenced leads" detail="They have time-bound intent and a resolvable objection. Estimated value ₹27.4L." /><button onClick={() => openScreen("owner-decision-memo")}>Open decision memo <ArrowRight size={14} /></button></section></div><section className="panel"><PanelHeader title="Source economics" subtitle="Spend only after operational leakage is accounted for" action="Full ROI" onAction={() => openScreen("owner-source-roi")} /><div className="source-economics"><div className="source-row head"><span>Source</span><span>Leads</span><span>Connected</span><span>Converted</span><span>Cost / conversion</span><span>Attributed revenue</span><span>Recommendation</span></div>{[["Google Search","886","81%","9.8%","₹4,120","₹76.2L","Scale selectively"],["Meta Telugu","1,104","72%","6.1%","₹5,940","₹61.8L","Fix follow-up first"],["YouTube","426","77%","7.2%","₹4,680","₹29.7L","Maintain"],["Organic / referral","448","84%","10.6%","₹1,180","₹16.3L","Protect"]].map((row,index)=><div className="source-row" key={row[0]}>{row.slice(0,6).map((cell)=><span key={cell}>{cell}</span>)}<span><Badge variant="outline" className={index===1?"status-warm":index===0?"status-positive":""}>{row[6]}</Badge></span></div>)}</div></section></div>; }
-function Decision({ priority, title, detail }: { priority: string; title: string; detail: string }) { return <div className="decision"><span>{priority}</span><div><strong>{title}</strong><p>{detail}</p></div></div>; }
 
 function DrillDownExplorer() { const levels=["Date","Branch","Department","Source","Campaign","Agent","Stage","Reason","Lead"]; return <div className="page-stack"><PageHeader eyebrow="Evidence explorer" title="Nine-level drill-down" description="Move from business outcome to a single lead, call, and timestamp without losing context."><Button variant="outline"><Download /> Export current view</Button></PageHeader><section className="panel drill-panel"><div className="drill-path">{levels.map((level,index)=><button className={index<4?"complete":index===4?"active":""} key={level}><span>{index+1}</span>{level}{index<levels.length-1&&<ChevronRight size={13} />}</button>)}</div><div className="drill-title"><div><span>Current level · Campaign</span><h2>Meta Telangana · Orthopaedics</h2><p>Branch: Banjara Hills · Department: Orthopaedics · 22 Aug–05 Sep</p></div><div><span>Conversion</span><strong>5.8%</strong><small>-2.1 pts vs benchmark</small></div></div><div className="drill-table"><div className="drill-row head"><span>Campaign / ad set</span><span>Leads</span><span>Connect</span><span>Qualified</span><span>Appointments</span><span>Visits</span><span>Converted</span><span>Signal</span></div>{[["Knee Pain · Telugu · 04","286","73%","61%","34%","62%","5.2%","Follow-up leak"],["Joint Replacement · Family","194","79%","68%","51%","67%","8.1%","Healthy"],["Doctor Video · Retargeting","118","81%","72%","46%","59%","6.7%","Price friction"],["Weekend Consult · Telangana","92","64%","57%","29%","48%","3.2%","SLA breach"]].map((row,index)=><button className="drill-row" key={row[0]}>{row.slice(0,7).map((cell)=><span key={cell}>{cell}</span>)}<span><Badge variant="outline" className={index===1?"status-positive":"status-warm"}>{row[7]}</Badge></span></button>)}</div></section><div className="drill-footnote"><ShieldCheck size={16} /><span>Every metric is reversible: click through to exact lead records and conversation evidence.</span></div></div>; }
 
 function DiagnosticReview({ notify }: { notify: (message: string) => void }) { return <div className="page-stack"><PageHeader eyebrow="AI-prepared · Human approved" title="15-day diagnostic memo" description="A decision-ready summary of what changed, why it changed, and what to do next."><Badge variant="outline" className="ai-draft-badge"><Sparkles /> Draft · Not shared</Badge></PageHeader><div className="memo-layout"><article className="memo-paper"><div className="memo-head"><div><span>TRH360 DIAGNOSTIC</span><h1>Lead Conversion Review</h1><p>22 August–05 September 2026 · Meenestham Healthcare Group</p></div><div className="brand-mark">T</div></div><hr /><section><span className="memo-section-no">01</span><h2>Executive conclusion</h2><p>Demand quality remained stable, while conversion weakened at the qualified-to-meeting stage. The decline is operational and recoverable; increasing ad spend now would amplify leakage.</p></section><section><span className="memo-section-no">02</span><h2>Material findings</h2><ol><li><b>Financial follow-up delay:</b> 31 high-intent patients waited a median of 19 hours for cost or EMI information.</li><li><b>Temperature mismatch:</b> Seven calls expressed clear timelines but were recorded as Warm rather than Hot.</li><li><b>Weekend SLA:</b> Sunday leads had a 12m 42s median first-touch time versus 3m 18s on weekdays.</li></ol></section><section><span className="memo-section-no">03</span><h2>Recommended decisions</h2><div className="memo-action"><strong>Within 24 hours</strong><p>Run a recovery queue for 84 leads with resolvable, evidenced objections.</p></div><div className="memo-action"><strong>Within 7 days</strong><p>Add weekend commercial-support coverage and align the Meta opening script to campaign promises.</p></div><div className="memo-action"><strong>Before scaling spend</strong><p>Restore qualified-to-meeting conversion above 52% for seven consecutive days.</p></div></section><footer>Generated from 2,864 lead journeys, 4,912 call attempts, and 1,206 transcripts. Claims link to evidence.</footer></article><aside className="memo-review panel"><h2>Review & publish</h2><p>AI can prepare this memo. Only an authorized leader can publish or schedule it.</p><div className="review-check"><Check size={15} /><span>All material claims have evidence</span></div><div className="review-check"><Check size={15} /><span>Personally identifying data is redacted</span></div><div className="review-check"><Check size={15} /><span>Recommendations do not change CRM records</span></div><label>Reviewer note<textarea rows={4} placeholder="Add context before publishing…" /></label><Button variant="outline" className="full-width" onClick={() => notify("Memo downloaded as PDF")}>Download PDF</Button><Button className="primary-action full-width" onClick={() => notify("Diagnostic memo approved and published")}>Approve & publish</Button></aside></div></div>; }
 
 function FinancialCase({ notify }: { notify: (message: string) => void }) { return <div className="page-stack"><div className="back-row"><button><ChevronLeft size={16} /> Financial counselling queue</button><span>FIN-01942</span></div><PageHeader eyebrow="Patient journey · Financial counselling" title="Lakshmi Narayana" description="Knee replacement · Appointment 07 Sep, 11:30 AM · Banjara Hills"><Button variant="outline"><Phone /> Call patient</Button><Button className="primary-action" onClick={() => notify("Eligibility outcome saved")}>Save outcome</Button></PageHeader><div className="journey-stepper">{[["Lead","complete"],["Qualified","complete"],["Appointment","complete"],["Financial","active"],["Admission",""],["Procedure",""]].map(([label,state],index)=><div className={state} key={label}><span>{state==="complete"?<Check size={13}/>:index+1}</span><b>{label}</b></div>)}</div><div className="financial-grid"><section className="panel"><PanelHeader title="Counselling assessment" subtitle="All decisions remain editable until handoff" /><div className="form-grid"><Field label="Estimated treatment amount" value="₹3,20,000" /><Field label="Immediate affordability" value="₹1,20,000" /><Field label="Preferred payment mode" value="Bajaj EMI + Cash" /><Field label="Insurance / scheme" value="No active insurance" /><Field label="EMI tenure discussed" value="18 months" /><Field label="Decision-maker" value="Daughter · Priya" /></div><label className="wide-field">Counselling note<textarea rows={5} defaultValue="Explained package inclusions and 12/18-month EMI options. Daughter needs written breakup before confirmation. Patient is comfortable with monthly estimate up to ₹12,000." /></label><div className="document-drop"><Upload size={19} /><div><strong>Attach estimate or eligibility proof</strong><span>PDF, JPG or PNG · up to 10 MB</span></div><Button variant="outline" size="sm">Browse</Button></div></section><aside className="page-stack tight"><section className="panel"><PanelHeader title="AI preparation" /><div className="ai-insight"><Sparkles size={17} /><p><b>Likely finance-ready.</b> The stated comfort range supports an 18-month plan if the eligible down payment is confirmed.</p></div><KeyValue label="Affordability confidence" value="78%" /><KeyValue label="Missing evidence" value="Daughter confirmation" /><KeyValue label="Next commitment" value="Send breakup by 2:00 PM" /></section><section className="panel"><PanelHeader title="Handoff" /><label className="option-card"><input type="radio" name="outcome" defaultChecked /><span><b>Ready for admission planning</b><small>Financial path agreed</small></span></label><label className="option-card"><input type="radio" name="outcome" /><span><b>Follow-up required</b><small>A question or document is pending</small></span></label><label className="option-card"><input type="radio" name="outcome" /><span><b>Not feasible now</b><small>Mandatory reason and evidence</small></span></label></section></aside></div></div>; }
-function Field({ label, value }: { label: string; value: string }) { return <label className="field"><span>{label}</span><input defaultValue={value} /></label>; }
 
 function AiSafety({ notify }: { notify: (message: string) => void }) {
   const [controls, setControls] = useState([true,true,true,true,false]);
@@ -757,11 +697,11 @@ function UniversalMobileNotifications() {
 function PhoneStatus(){return <div className="phone-status"><b>9:41</b><div><Activity size={13}/><span className="signal-bars">▮▮▮</span><span>82%</span></div></div>;}
 function MobileHeader({title,subtitle,back,openScreen,right}:{title:string;subtitle?:string;back?:string;openScreen?:(id:string)=>void;right?:React.ReactNode}){return <><PhoneStatus/><div className="mobile-header">{back?<button onClick={()=>openScreen?.(back)}><ChevronLeft/></button>:<div className="mobile-logo">T</div>}<div><strong>{title}</strong>{subtitle&&<span>{subtitle}</span>}</div>{right??<button><Bell size={19}/></button>}</div></>;}
 
-function MobileHome({openScreen, leads}:{openScreen:(id:string)=>void; leads:DisplayLead[]}){return <div className="mobile-screen"><MobileHeader title="Good morning, Sravani" subtitle="Friday · 05 September" right={<div className="user-avatar small">SK</div>}/><div className="mobile-body"><button className="mobile-sla" onClick={()=>openScreen("mobile-call-queue")}><AlarmClock size={18}/><div><b>3 calls need attention now</b><span>Oldest SLA breach · 03:18</span></div><ChevronRight size={16}/></button><div className="mobile-metrics"><div><span>Calls due</span><strong>14</strong><small>3 overdue</small></div><div><span>Follow-ups</span><strong>21</strong><small>Today</small></div><div><span>Appointments</span><strong>07</strong><small>2 confirmed</small></div></div><div className="mobile-section-title"><div><span>Next calls</span><small>AI prioritized</small></div><button onClick={()=>openScreen("mobile-call-queue")}>View all</button></div><div className="mobile-leads">{leads.slice(0,3).map((lead,index)=><div className="mobile-lead" key={lead.id} onClick={()=>openScreen("mobile-lead-360")}><div className="mobile-lead-top"><div className="mini-avatar">{lead.name.split(" ").map((part)=>part[0]).join("").slice(0,2)}</div><div><b>{lead.name}</b><span>{lead.concern}</span></div><Badge variant="outline" className={temperatureClass[lead.temperature]}>{lead.temperature}</Badge></div><div className="mobile-lead-context"><span><Clock3 size={13}/> {index===0?"Call now · overdue":lead.next}</span><span>{lead.source}</span></div><div className="mobile-lead-actions"><button><MessageSquare size={16}/> Message</button><button className="call" onClick={(event)=>{event.stopPropagation();openScreen("mobile-active-call");}}><Phone size={16}/> Call</button></div></div>)}</div></div><MobileBottomNav active="Home" openScreen={openScreen}/></div>;}
+function MobileHome({openScreen, leads}:{openScreen:(id:string)=>void; leads:DisplayLead[]}){return <div className="mobile-screen"><MobileHeader title="Good morning, Sravani" subtitle="Friday · 05 September" right={<div className="user-avatar small">SK</div>}/><div className="mobile-body"><button className="mobile-sla" onClick={()=>openScreen("mobile-call-queue")}><AlarmClock size={18}/><div><b>3 calls need attention now</b><span>Oldest SLA breach · 03:18</span></div><ChevronRight size={16}/></button><div className="mobile-metrics"><div><span>Calls due</span><strong>14</strong><small>3 overdue</small></div><div><span>Follow-ups</span><strong>21</strong><small>Today</small></div><div><span>Appointments</span><strong>07</strong><small>2 confirmed</small></div></div><div className="mobile-section-title"><div><span>Next calls</span><small>AI prioritized</small></div><button onClick={()=>openScreen("mobile-call-queue")}>View all</button></div><div className="mobile-leads">{leads.slice(0,3).map((lead,index)=><div className="mobile-lead" key={lead.id} onClick={()=>openScreen("mobile-lead-360")}><div className="mobile-lead-top"><div className="mini-avatar">{lead.name.split(" ").map((part)=>part[0]).join("").slice(0,2)}</div><div><b>{lead.name}</b><span>{lead.stage}</span></div><Badge variant="outline" className={temperatureClass[lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown"]}>{lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown"}</Badge></div><div className="mobile-lead-context"><span><Clock3 size={13}/> {index===0?"Call now · overdue":lead.next}</span><span>{lead.source}</span></div><div className="mobile-lead-actions"><button><MessageSquare size={16}/> Message</button><button className="call" onClick={(event)=>{event.stopPropagation();openScreen("mobile-active-call");}}><Phone size={16}/> Call</button></div></div>)}</div></div><MobileBottomNav active="Home" openScreen={openScreen}/></div>;}
 
 function MobileBottomNav({active,openScreen}:{active:string;openScreen:(id:string)=>void}){return <nav className="mobile-bottom-nav">{[["Home",LayoutDashboard,"mobile-home"],["Leads",UsersRound,"mobile-call-queue"],["Call",PhoneCall,"mobile-active-call"],["Tasks",CircleCheck,"mobile-tasks"]].map(([label,Icon,id])=>{const NavIcon=Icon as LucideIcon;return <button className={active===label?"active":""} key={label as string} onClick={()=>openScreen(id as string)}><NavIcon size={19}/><span>{label as string}</span></button>;})}</nav>;}
 
-function MobileCallQueue({openScreen, leads}:{openScreen:(id:string)=>void; leads:DisplayLead[]}){return <div className="mobile-screen"><MobileHeader title="Call queue" subtitle="14 due · 3 overdue" back="mobile-home" openScreen={openScreen} right={<button><Filter size={18}/></button>}/><div className="mobile-body with-tabs"><div className="mobile-tabs"><button className="active">Priority</button><button>Follow-up</button><button>Uncontacted</button></div><div className="mobile-search"><Search size={16}/><input placeholder="Search name or mobile"/></div><div className="queue-date"><span>Call now</span><b>3</b></div>{leads.map((lead,index)=><button className="queue-item" key={lead.id} onClick={()=>openScreen("mobile-lead-360")}><div className="mini-avatar">{lead.name.split(" ").map((p)=>p[0]).join("").slice(0,2)}</div><div><strong>{lead.name}</strong><span>{lead.phone}</span><small>{lead.concern} · {lead.city}</small></div><div><Badge variant="outline" className={temperatureClass[lead.temperature]}>{lead.temperature}</Badge><button className="queue-call" aria-label="Call" onClick={(event)=>{event.stopPropagation();openScreen("mobile-active-call");}}><Phone size={17}/></button></div>{index===0&&<em>Overdue 03:18</em>}</button>)}</div><MobileBottomNav active="Leads" openScreen={openScreen}/></div>;}
+function MobileCallQueue({openScreen, leads}:{openScreen:(id:string)=>void; leads:DisplayLead[]}){return <div className="mobile-screen"><MobileHeader title="Call queue" subtitle="14 due · 3 overdue" back="mobile-home" openScreen={openScreen} right={<button><Filter size={18}/></button>}/><div className="mobile-body with-tabs"><div className="mobile-tabs"><button className="active">Priority</button><button>Follow-up</button><button>Uncontacted</button></div><div className="mobile-search"><Search size={16}/><input placeholder="Search name or mobile"/></div><div className="queue-date"><span>Call now</span><b>3</b></div>{leads.map((lead,index)=><button className="queue-item" key={lead.id} onClick={()=>openScreen("mobile-lead-360")}><div className="mini-avatar">{lead.name.split(" ").map((p)=>p[0]).join("").slice(0,2)}</div><div><strong>{lead.name}</strong><span>{lead.phone}</span><small>{lead.stage} · {lead.source}</small></div><div><Badge variant="outline" className={temperatureClass[lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown"]}>{lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown"}</Badge><button className="queue-call" aria-label="Call" onClick={(event)=>{event.stopPropagation();openScreen("mobile-active-call");}}><Phone size={17}/></button></div>{index===0&&<em>Overdue 03:18</em>}</button>)}</div><MobileBottomNav active="Leads" openScreen={openScreen}/></div>;}
 
 function MobileActiveCall({inbound,callSeconds,openScreen}:{inbound:boolean;callSeconds:number;openScreen:(id:string)=>void}){return <div className="mobile-screen active-call-screen"><PhoneStatus/><div className="call-recording-state"><span className="recording-dot"/> Recording with consent</div><div className="active-call-person"><div className="call-avatar">LN</div><h1>Lakshmi Narayana</h1><p>{inbound?"Incoming · Existing lead":"Outbound · TRH-24190"}</p><strong>{formatDuration(callSeconds)}</strong></div><div className="call-context-card"><span>AI live notes</span><p>Patient is discussing treatment cost. Listening for decision-maker and timeline.</p><div><Sparkles size={14}/> Transcript is being prepared</div></div><div className="call-controls"><button><Mic size={20}/><span>Mute</span></button><button><MessageSquare size={20}/><span>Note</span></button><button><UserRound size={20}/><span>Contact</span></button><button><MoreHorizontal size={20}/><span>More</span></button></div><button className="end-call" onClick={()=>openScreen("mobile-post-call")}><PhoneOff size={22}/></button><p className="end-label">End call</p></div>;}
 

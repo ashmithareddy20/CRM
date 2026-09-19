@@ -1,0 +1,296 @@
+{
+  "info": {
+    "_postman_id": "trh360-crm-api-collection-2026",
+    "name": "TRH360 Universal CRM - Backend APIs",
+    "description": "Comprehensive Postman test collection for the TRH360 CRM Cloudflare Worker D1 backend APIs including Lead lifecycle, Users, Calls, Notes, and Health checks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5173",
+      "type": "string"
+    },
+    {
+      "key": "leadId",
+      "value": "TRH-24190",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "System & Health",
+      "item": [
+        {
+          "name": "1. Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Verifies that the TRH360 backend service is healthy and active."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Leads API",
+      "item": [
+        {
+          "name": "2. Get All Leads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads"]
+            },
+            "description": "Fetches all CRM leads stored in the D1 SQLite database, ordered by latest creation."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Search & Filter Leads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/leads?search=Lakshmi&status=qualified",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads"],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "Lakshmi"
+                },
+                {
+                  "key": "status",
+                  "value": "qualified"
+                }
+              ]
+            },
+            "description": "Filters leads by search query and lifecycle status."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Create New Lead (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Arjun Varma\",\n  \"phone\": \"+91 98480 12345\",\n  \"email\": \"arjun.varma@example.com\",\n  \"source\": \"Website · Inbound\",\n  \"status\": \"new\",\n  \"ownerId\": \"Sravani\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leads",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads"]
+            },
+            "description": "Creates a new lead record in the D1 database. The created record will be returned with its UUID."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Get Single Lead By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/leads/{{leadId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads", "{{leadId}}"]
+            },
+            "description": "Retrieves the full details for a single lead by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "6. Update Lead (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"qualified\",\n  \"source\": \"Google Search · Enterprise\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/leads/{{leadId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads", "{{leadId}}"]
+            },
+            "description": "Updates specific fields on an existing lead in the database."
+          },
+          "response": []
+        },
+        {
+          "name": "7. Delete Lead (DELETE)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/leads/{{leadId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leads", "{{leadId}}"]
+            },
+            "description": "Deletes a lead and cascades deletion of its associated calls and notes."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users API",
+      "item": [
+        {
+          "name": "8. Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Fetches all system users/telecalling agents."
+          },
+          "response": []
+        },
+        {
+          "name": "9. Create User (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sravani K\",\n  \"email\": \"sravani@northstar.example\",\n  \"role\": \"agent\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            },
+            "description": "Registers a new agent or manager in the system."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Calls & Telephony API",
+      "item": [
+        {
+          "name": "10. Get Calls for Lead",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/calls?leadId={{leadId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calls"],
+              "query": [
+                {
+                  "key": "leadId",
+                  "value": "{{leadId}}"
+                }
+              ]
+            },
+            "description": "Lists calls recorded for a lead."
+          },
+          "response": []
+        },
+        {
+          "name": "11. Log New Call (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"TRH-24190\",\n  \"agentId\": \"agent-1\",\n  \"direction\": \"outbound\",\n  \"outcome\": \"connected\",\n  \"durationSec\": 278\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/calls",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "calls"]
+            },
+            "description": "Logs an inbound or outbound call attempt and outcome."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notes API",
+      "item": [
+        {
+          "name": "12. Get Notes for Lead",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/notes?leadId={{leadId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes"],
+              "query": [
+                {
+                  "key": "leadId",
+                  "value": "{{leadId}}"
+                }
+              ]
+            },
+            "description": "Fetches chronological notes attached to a lead."
+          },
+          "response": []
+        },
+        {
+          "name": "13. Add Note to Lead (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"TRH-24190\",\n  \"authorId\": \"agent-1\",\n  \"content\": \"Spoke with decision maker Priya. Saturday solution review confirmed.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/notes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notes"]
+            },
+            "description": "Appends a permanent note to the lead's Lead 360 record."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

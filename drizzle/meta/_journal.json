@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789750137704,
+      "tag": "0000_thankful_beyonder",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789800000000,
+      "tag": "0001_add_tasks_appointments",
+      "breakpoints": true
+    }
+  ]
+}

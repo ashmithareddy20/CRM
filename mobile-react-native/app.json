@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "TRH360 CRM",
+    "slug": "trh360-crm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0b2545"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.trh360.crm"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0b2545"
+      },
+      "package": "com.trh360.crm",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CALL_PHONE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

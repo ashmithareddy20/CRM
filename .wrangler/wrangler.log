@@ -1,0 +1,1975 @@
+
+--- 2026-09-19T05:21:13.061Z debug
+🪵  Writing logs to "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.wrangler\wrangler.log"
+---
+
+--- 2026-09-19T05:21:13.061Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T05:21:13.062Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env.local". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T05:21:13.071Z log
+
+ ⛅️ wrangler 4.135.0
+────────────────────
+---
+
+--- 2026-09-19T05:21:13.101Z log
+Getting User settings...
+---
+
+--- 2026-09-19T05:21:13.107Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command started","timestamp":1789795273107,"properties":{"amplitude_session_id":1789795273086,"amplitude_event_id":0,"wranglerVersion":"4.135.0","wranglerMajorVersion":4,"wranglerMinorVersion":135,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"jsonc","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"argsUsed":[],"argsCombination":"","sanitizedCommand":"whoami","sanitizedArgs":{},"currentAgentSkillsInstalled":null}}
+---
+
+--- 2026-09-19T05:21:13.159Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/user
+---
+
+--- 2026-09-19T05:21:13.159Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:13.160Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:13.160Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:13.160Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:21:14.160Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:21:14.161Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.161Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.161Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:21:14.165Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts
+---
+
+--- 2026-09-19T05:21:14.165Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.165Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.165Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.165Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:21:14.166Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/memberships
+---
+
+--- 2026-09-19T05:21:14.166Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.166Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.166Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.166Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:21:14.678Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:21:14.678Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.678Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:14.678Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:21:15.339Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:21:15.340Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:15.340Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:21:15.340Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:21:15.343Z log
+👋 You are logged in with an OAuth Token, associated with the email ashmithareddy.20@gmail.com.
+---
+
+--- 2026-09-19T05:21:15.346Z log
+🔐 Credentials are stored in: C:\Users\avina\AppData\Roaming\xdg.config\.wrangler\config\default.toml
+---
+
+--- 2026-09-19T05:21:15.371Z log
+┌──────────────────────────────────────┬──────────────────────────────────┐
+│ Account Name                         │ Account ID                       │
+├──────────────────────────────────────┼──────────────────────────────────┤
+│ Ashmithareddy.20@gmail.com's Account │ 4e3d4b1cfea5fe6a065321ca7298ee6b │
+└──────────────────────────────────────┴──────────────────────────────────┘
+---
+
+--- 2026-09-19T05:21:15.372Z log
+🔓 Token Permissions:
+---
+
+--- 2026-09-19T05:21:15.372Z log
+Scope (Access)
+---
+
+--- 2026-09-19T05:21:15.372Z log
+- user (read)
+---
+
+--- 2026-09-19T05:21:15.373Z log
+- offline_access 
+---
+
+--- 2026-09-19T05:21:15.373Z log
+- account (read)
+---
+
+--- 2026-09-19T05:21:15.374Z log
+- workers (write)
+---
+
+--- 2026-09-19T05:21:15.374Z log
+- workers_kv (write)
+---
+
+--- 2026-09-19T05:21:15.374Z log
+- workers_routes (write)
+---
+
+--- 2026-09-19T05:21:15.374Z log
+- workers_scripts (write)
+---
+
+--- 2026-09-19T05:21:15.374Z log
+- workers_tail (read)
+---
+
+--- 2026-09-19T05:21:15.374Z log
+- d1 (write)
+---
+
+--- 2026-09-19T05:21:15.374Z log
+- pages (write)
+---
+
+--- 2026-09-19T05:21:15.375Z log
+- zone (read)
+---
+
+--- 2026-09-19T05:21:15.375Z log
+- ssl_certs (write)
+---
+
+--- 2026-09-19T05:21:15.375Z log
+- ai (write)
+---
+
+--- 2026-09-19T05:21:15.375Z log
+- ai-search (write)
+---
+
+--- 2026-09-19T05:21:15.375Z log
+- ai-search (run)
+---
+
+--- 2026-09-19T05:21:15.375Z log
+- agent-memory (write)
+---
+
+--- 2026-09-19T05:21:15.375Z log
+- queues (write)
+---
+
+--- 2026-09-19T05:21:15.375Z log
+- pipelines (write)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- secrets_store (write)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- artifacts (write)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- flagship (write)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- containers (write)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- cloudchamber (write)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- connectivity (admin)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- email_routing (write)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- email_sending (write)
+---
+
+--- 2026-09-19T05:21:15.376Z log
+- browser (write)
+---
+
+--- 2026-09-19T05:21:15.377Z log
+- challenge-widgets.write 
+---
+
+--- 2026-09-19T05:21:15.379Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"view accounts","timestamp":1789795275379,"properties":{"amplitude_session_id":1789795275377,"amplitude_event_id":0,"wranglerVersion":"4.135.0","wranglerMajorVersion":4,"wranglerMinorVersion":135,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","currentAgentSkillsInstalled":null}}
+---
+
+--- 2026-09-19T05:21:15.381Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command completed","timestamp":1789795275381,"properties":{"amplitude_session_id":1789795273086,"amplitude_event_id":1,"wranglerVersion":"4.135.0","wranglerMajorVersion":4,"wranglerMinorVersion":135,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"jsonc","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"argsUsed":[],"argsCombination":"","sanitizedCommand":"whoami","sanitizedArgs":{},"durationMs":2314,"currentAgentSkillsInstalled":null}}
+---
+
+--- 2026-09-19T05:22:08.331Z debug
+🪵  Writing logs to "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.wrangler\wrangler.log"
+---
+
+--- 2026-09-19T05:22:08.331Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T05:22:08.332Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env.local". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T05:22:08.341Z log
+
+ ⛅️ wrangler 4.135.0
+────────────────────
+---
+
+--- 2026-09-19T05:22:08.342Z log
+Resource location: remote 
+
+---
+
+--- 2026-09-19T05:22:08.369Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command started","timestamp":1789795328369,"properties":{"amplitude_session_id":1789795328349,"amplitude_event_id":0,"wranglerVersion":"4.135.0","wranglerMajorVersion":4,"wranglerMinorVersion":135,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"jsonc","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"argsUsed":["remote"],"argsCombination":"remote","sanitizedCommand":"d1 migrations apply","sanitizedArgs":{"remote":true},"currentAgentSkillsInstalled":null}}
+---
+
+--- 2026-09-19T05:22:08.459Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts
+---
+
+--- 2026-09-19T05:22:08.459Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:08.459Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:08.460Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:08.460Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:22:08.462Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/memberships
+---
+
+--- 2026-09-19T05:22:08.462Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:08.462Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:08.462Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:08.462Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:22:09.178Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:22:09.179Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:09.179Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:09.179Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:22:09.682Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:22:09.683Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:09.683Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:09.683Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:22:09.684Z debug
+Saving to cache: {"account":{"id":"4e3d4b1cfea5fe6a065321ca7298ee6b","name":"Ashmithareddy.20@gmail.com's Account"}}
+---
+
+--- 2026-09-19T05:22:09.687Z log
+🌀 Executing on remote database site-creator-d1 (00000000-0000-4000-8000-000000000000):
+---
+
+--- 2026-09-19T05:22:09.687Z log
+🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+---
+
+--- 2026-09-19T05:22:09.690Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/d1/database/00000000-0000-4000-8000-000000000000/query
+---
+
+--- 2026-09-19T05:22:09.690Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:09.690Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:09.690Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:09.690Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:22:10.313Z debug
+-- START CF API RESPONSE: Not Found 404
+---
+
+--- 2026-09-19T05:22:10.313Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:10.313Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:22:10.313Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:22:10.315Z log
+
+---
+
+--- 2026-09-19T05:22:10.382Z error
+X [ERROR] A request to the Cloudflare API (/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/d1/database/00000000-0000-4000-8000-000000000000/query) failed.
+
+  The database 00000000-0000-4000-8000-000000000000 could not be found [code:
+  7404]
+  
+  If you think this is a bug, please open an issue at:
+  https://github.com/cloudflare/workers-sdk/issues/new/choose
+
+
+---
+
+--- 2026-09-19T05:22:10.383Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command errored","timestamp":1789795330383,"properties":{"amplitude_session_id":1789795328349,"amplitude_event_id":1,"wranglerVersion":"4.135.0","wranglerMajorVersion":4,"wranglerMinorVersion":135,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"jsonc","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"argsUsed":["remote"],"argsCombination":"remote","sanitizedCommand":"d1 migrations apply","sanitizedArgs":{"remote":true},"durationMs":1981,"errorType":"APIError","currentAgentSkillsInstalled":null}}
+---
+
+--- 2026-09-19T05:22:13.648Z debug
+🪵  Writing logs to "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.wrangler\wrangler.log"
+---
+
+--- 2026-09-19T05:22:13.648Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T05:22:13.649Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env.local". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T05:22:13.660Z log
+
+ ⛅️ wrangler 4.135.0
+────────────────────
+---
+
+--- 2026-09-19T05:22:13.674Z info
+Using redirected Wrangler configuration.
+ - Configuration being used: "dist\server\wrangler.json"
+ - Original user's configuration: "wrangler.jsonc"
+ - Deploy configuration file: ".wrangler\deploy\config.json"
+---
+
+--- 2026-09-19T05:22:13.686Z log
+
+---
+
+--- 2026-09-19T05:22:13.748Z error
+X [ERROR] Processing dist\server\wrangler.json configuration:
+
+    - DB assigned to multiple D1 Database bindings.
+    - Bindings must have unique names, so that they can all be referenced in
+  the worker.
+      Please change your bindings to have unique names.
+
+
+---
+
+--- 2026-09-19T05:22:13.748Z debug
+Error: Processing dist\server\wrangler.json configuration:
+  - DB assigned to multiple D1 Database bindings.
+  - Bindings must have unique names, so that they can all be referenced in the worker.
+    Please change your bindings to have unique names.
+    at readConfig (C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.sites-runtime\npm-cache\_npx\32026684e21afda6\node_modules\wrangler\wrangler-dist\cli.js:176528:11)
+    at C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.sites-runtime\npm-cache\_npx\32026684e21afda6\node_modules\wrangler\wrangler-dist\cli.js:224483:22
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_hooks:91:14)
+    at run (C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.sites-runtime\npm-cache\_npx\32026684e21afda6\node_modules\wrangler\wrangler-dist\cli.js:178399:61)
+    at Object.handler (C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.sites-runtime\npm-cache\_npx\32026684e21afda6\node_modules\wrangler\wrangler-dist\cli.js:224480:13)
+---
+
+--- 2026-09-19T05:22:13.749Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command started","timestamp":1789795333749,"properties":{"amplitude_session_id":1789795333645,"amplitude_event_id":0,"wranglerVersion":"4.135.0","wranglerMajorVersion":4,"wranglerMinorVersion":135,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"jsonc","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"argsUsed":[],"argsCombination":"","sanitizedCommand":"","sanitizedArgs":{},"currentAgentSkillsInstalled":null}}
+---
+
+--- 2026-09-19T05:22:13.757Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command errored","timestamp":1789795333757,"properties":{"amplitude_session_id":1789795333645,"amplitude_event_id":1,"wranglerVersion":"4.135.0","wranglerMajorVersion":4,"wranglerMinorVersion":135,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"jsonc","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"argsUsed":[],"argsCombination":"","sanitizedCommand":"","sanitizedArgs":{},"durationMs":48,"errorType":"UserError","errorMessage":"config wrangler validation failed","currentAgentSkillsInstalled":null}}
+---
+
+--- 2026-09-19T05:30:51.846Z debug
+🪵  Writing logs to "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.wrangler\wrangler.log"
+---
+
+--- 2026-09-19T05:30:51.845Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T05:30:51.847Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env.local". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T05:30:51.860Z log
+
+ ⛅️ wrangler 4.92.0 (update available 4.135.0)
+──────────────────────────────────────────────
+---
+
+--- 2026-09-19T05:30:51.864Z info
+Using redirected Wrangler configuration.
+ - Configuration being used: "dist\server\wrangler.json"
+ - Original user's configuration: "wrangler.jsonc"
+ - Deploy configuration file: ".wrangler\deploy\config.json"
+---
+
+--- 2026-09-19T05:30:51.875Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command started","timestamp":1789795851875,"properties":{"amplitude_session_id":1789795851871,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"json","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":true,"agent":null,"argsUsed":[],"argsCombination":"","sanitizedCommand":"deploy","sanitizedArgs":{}}}
+---
+
+--- 2026-09-19T05:30:51.901Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"autoconfig_process_started","timestamp":1789795851901,"properties":{"amplitude_session_id":1789795851900,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","autoConfigId":"d2d2b2bf-4b6a-4e7a-90b3-5a30520598c9","command":"wrangler deploy","dryRun":false}}
+---
+
+--- 2026-09-19T05:30:51.903Z debug
+Running autoconfig detection in C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)...
+---
+
+--- 2026-09-19T05:30:51.904Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"autoconfig_detection_started","timestamp":1789795851904,"properties":{"amplitude_session_id":1789795851903,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","autoConfigId":"d2d2b2bf-4b6a-4e7a-90b3-5a30520598c9","command":"wrangler deploy"}}
+---
+
+--- 2026-09-19T05:30:51.951Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"autoconfig_process_ended","timestamp":1789795851951,"properties":{"amplitude_session_id":1789795851950,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","autoConfigId":"d2d2b2bf-4b6a-4e7a-90b3-5a30520598c9","command":"wrangler deploy","dryRun":false,"success":true}}
+---
+
+--- 2026-09-19T05:30:52.054Z debug
+Retrieving cached values for account from node_modules\.cache\wrangler
+---
+
+--- 2026-09-19T05:30:52.055Z debug
+Starting verifyWorkerMatchesCITag() with tag: undefined, name: trh360-crm-local
+---
+
+--- 2026-09-19T05:30:52.055Z debug
+No WRANGLER_CI_MATCH_TAG variable provided, aborting verifyWorkerMatchesCITag()
+---
+
+--- 2026-09-19T05:30:52.057Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/services/trh360-crm-local
+---
+
+--- 2026-09-19T05:30:52.057Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:52.058Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:52.058Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:52.058Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:30:53.371Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:30:53.372Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:53.372Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:53.372Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:30:53.373Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/secrets
+---
+
+--- 2026-09-19T05:30:53.373Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:53.373Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:53.373Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:53.374Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:30:54.537Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:30:54.537Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:54.537Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:54.537Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:30:54.539Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/deployments
+---
+
+--- 2026-09-19T05:30:54.539Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:54.539Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:54.539Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:54.539Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:30:55.674Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:30:55.675Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:55.675Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:55.675Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:30:55.691Z info
+Attaching additional modules:
+---
+
+--- 2026-09-19T05:30:55.703Z log
+┌───────────────────────────────────────────────┬──────┬─────────────┐
+│ Name                                          │ Type │ Size        │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/assets/error-boundary-DEPHMDHv.js         │ esm  │ 8.22 KiB    │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/assets/layout-segment-context-CVUaRAbM.js │ esm  │ 1.70 KiB    │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/assets/page-DrGr6P_O.js                   │ esm  │ 490.38 KiB  │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/index.js                                  │ esm  │ 570.67 KiB  │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/__vite_rsc_assets_manifest.js             │ esm  │ 1.09 KiB    │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ __vite_rsc_assets_manifest.js                 │ esm  │ 1.09 KiB    │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ Total (6 modules)                             │      │ 1073.15 KiB │
+└───────────────────────────────────────────────┴──────┴─────────────┘
+---
+
+--- 2026-09-19T05:30:55.708Z info
+🌀 Building list of assets...
+---
+
+--- 2026-09-19T05:30:55.712Z info
+✨ Read 15 files from the assets directory C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\dist\client
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/.assetsignore
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/.vite
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/assets
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/favicon.svg
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/file.svg
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/globe.svg
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/window.svg
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/_headers
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/assets\framework-CXnKph_e.js
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/assets\index-BL4ygXqi.css
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/assets\index-CTrY5B70.js
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/assets\layout-segment-context-CMokUXJN.js
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/assets\page-DXPEEcmu.js
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/assets\rolldown-runtime-S-ySWqyJ.js
+---
+
+--- 2026-09-19T05:30:55.712Z debug
+/.vite\manifest.json
+---
+
+--- 2026-09-19T05:30:55.715Z debug
+Ignoring asset: .assetsignore
+---
+
+--- 2026-09-19T05:30:55.716Z debug
+Ignoring asset: _headers
+---
+
+--- 2026-09-19T05:30:55.731Z info
+🌀 Starting asset upload...
+---
+
+--- 2026-09-19T05:30:55.731Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/assets-upload-session
+---
+
+--- 2026-09-19T05:30:55.731Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:55.731Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:55.731Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:55.731Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:30:57.741Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:30:57.742Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:57.742Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:57.742Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:30:57.742Z info
+No updated asset files to upload. Proceeding with deployment...
+---
+
+--- 2026-09-19T05:30:57.819Z log
+Total Upload: 1820.52 KiB / gzip: 375.94 KiB
+---
+
+--- 2026-09-19T05:30:57.821Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/settings
+---
+
+--- 2026-09-19T05:30:57.821Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:57.821Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:57.821Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:57.821Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:30:58.940Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:30:58.940Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:58.940Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:58.940Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:30:58.946Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/versions
+---
+
+--- 2026-09-19T05:30:58.946Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:58.946Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:58.946Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:58.956Z debug
+BODY: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:30:58.956Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:31:02.322Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:31:02.323Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:02.323Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:02.323Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:31:02.324Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/deployments
+---
+
+--- 2026-09-19T05:31:02.324Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:02.324Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:02.324Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:02.324Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:31:03.702Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:31:03.702Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:03.702Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:03.702Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:31:03.702Z debug
+-- START CF API REQUEST: PATCH https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/script-settings
+---
+
+--- 2026-09-19T05:31:03.702Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:03.702Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:03.703Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:03.703Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:31:04.907Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:31:04.907Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:04.907Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:04.907Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:31:04.908Z log
+Worker Startup Time: 13 ms
+---
+
+--- 2026-09-19T05:31:04.909Z log
+Your Worker has access to the following bindings:
+---
+
+--- 2026-09-19T05:31:04.909Z log
+Binding                       Resource         
+---
+
+--- 2026-09-19T05:31:04.909Z log
+env.DB (site-creator-d1)      D1 Database      
+---
+
+--- 2026-09-19T05:31:04.910Z log
+
+---
+
+--- 2026-09-19T05:31:04.912Z log
+Uploaded trh360-crm-local (10.37 sec)
+---
+
+--- 2026-09-19T05:31:04.913Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/subdomain
+---
+
+--- 2026-09-19T05:31:04.913Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:04.913Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:04.913Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:04.913Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/subdomain
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:06.108Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:31:07.253Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:31:07.253Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:07.253Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:07.253Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:31:07.254Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/subdomain
+---
+
+--- 2026-09-19T05:31:07.254Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:07.254Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:07.254Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:07.254Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T05:31:08.523Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T05:31:08.523Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:08.523Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T05:31:08.523Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T05:31:08.593Z warn
+▲ [WARNING] Because 'workers_dev' is not in your Wrangler file, it will be enabled for this deployment by default.
+
+  To override this setting, you can disable workers.dev by explicitly setting
+  'workers_dev = false' in your Wrangler file.
+
+
+---
+
+--- 2026-09-19T05:31:08.594Z warn
+▲ [WARNING] Because your 'workers.dev' route is enabled and your 'preview_urls' setting is not in your Wrangler file, Preview URLs will be enabled for this deployment by default.
+
+  To override this setting, you can disable Preview URLs by explicitly setting
+  'preview_urls = false' in your Wrangler file.
+
+
+---
+
+--- 2026-09-19T05:31:08.595Z log
+Deployed trh360-crm-local triggers (3.68 sec)
+---
+
+--- 2026-09-19T05:31:08.595Z log
+  https://trh360-crm-local.ashmithareddy-20.workers.dev
+---
+
+--- 2026-09-19T05:31:08.595Z log
+Current Version ID: 6f2cb0c4-ac0c-4538-b21d-7e7664c97604
+---
+
+--- 2026-09-19T05:31:08.596Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"deploy worker script","timestamp":1789795868596,"properties":{"amplitude_session_id":1789795868595,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","usesTypeScript":false,"durationMs":16540}}
+---
+
+--- 2026-09-19T05:31:08.598Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command completed","timestamp":1789795868598,"properties":{"amplitude_session_id":1789795851871,"amplitude_event_id":1,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"json","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":true,"agent":null,"argsUsed":[],"argsCombination":"","sanitizedCommand":"deploy","sanitizedArgs":{},"durationMs":16749}}
+---
+
+--- 2026-09-19T07:49:16.095Z debug
+🪵  Writing logs to "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.wrangler\wrangler.log"
+---
+
+--- 2026-09-19T07:49:16.095Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T07:49:16.096Z debug
+.env file not found at "C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\.env.local". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---
+
+--- 2026-09-19T07:49:16.199Z log
+
+ ⛅️ wrangler 4.92.0
+───────────────────
+---
+
+--- 2026-09-19T07:49:16.203Z info
+Using redirected Wrangler configuration.
+ - Configuration being used: "dist\server\wrangler.json"
+ - Original user's configuration: "wrangler.jsonc"
+ - Deploy configuration file: ".wrangler\deploy\config.json"
+---
+
+--- 2026-09-19T07:49:16.214Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command started","timestamp":1789804156214,"properties":{"amplitude_session_id":1789804156209,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"json","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":true,"agent":null,"argsUsed":[],"argsCombination":"","sanitizedCommand":"deploy","sanitizedArgs":{}}}
+---
+
+--- 2026-09-19T07:49:16.245Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"autoconfig_process_started","timestamp":1789804156245,"properties":{"amplitude_session_id":1789804156244,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","autoConfigId":"f4690116-4aab-4176-a598-dfe5eedd872f","command":"wrangler deploy","dryRun":false}}
+---
+
+--- 2026-09-19T07:49:16.246Z debug
+Running autoconfig detection in C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)...
+---
+
+--- 2026-09-19T07:49:16.247Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"autoconfig_detection_started","timestamp":1789804156247,"properties":{"amplitude_session_id":1789804156246,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","autoConfigId":"f4690116-4aab-4176-a598-dfe5eedd872f","command":"wrangler deploy"}}
+---
+
+--- 2026-09-19T07:49:16.253Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"autoconfig_process_ended","timestamp":1789804156253,"properties":{"amplitude_session_id":1789804156252,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","autoConfigId":"f4690116-4aab-4176-a598-dfe5eedd872f","command":"wrangler deploy","dryRun":false,"success":true}}
+---
+
+--- 2026-09-19T07:49:16.712Z debug
+fetching auth token grant_type=refresh_token&refresh_token=cfort_qmQl3k_QxmA0zcxe8XianjzF1VQ22AEajFHZDnERI3o.JAs3yHnRQTJ5XNzenSdzhlWLu3pOUXXNE3O9SsIoI6I&client_id=54d11594-84e4-41aa-b438-e81b8fa78ee7
+---
+
+--- 2026-09-19T07:49:16.712Z debug
+Checking if domain has Access enabled: dash.cloudflare.com
+---
+
+--- 2026-09-19T07:49:16.712Z debug
+Access switch not cached for: dash.cloudflare.com
+---
+
+--- 2026-09-19T07:49:17.444Z debug
+Caching access switch for: dash.cloudflare.com
+---
+
+--- 2026-09-19T07:49:17.444Z debug
+Fetching auth token from https://dash.cloudflare.com/oauth2/token
+---
+
+--- 2026-09-19T07:49:20.808Z debug
+Retrieving cached values for account from node_modules\.cache\wrangler
+---
+
+--- 2026-09-19T07:49:20.808Z debug
+Starting verifyWorkerMatchesCITag() with tag: undefined, name: trh360-crm-local
+---
+
+--- 2026-09-19T07:49:20.808Z debug
+No WRANGLER_CI_MATCH_TAG variable provided, aborting verifyWorkerMatchesCITag()
+---
+
+--- 2026-09-19T07:49:20.811Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/services/trh360-crm-local
+---
+
+--- 2026-09-19T07:49:20.811Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:20.811Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:20.811Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:20.811Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:22.338Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:22.339Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:22.339Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:22.339Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:22.341Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/secrets
+---
+
+--- 2026-09-19T07:49:22.341Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:22.341Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:22.341Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:22.341Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:23.422Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:23.422Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:23.422Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:23.422Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:23.425Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/deployments
+---
+
+--- 2026-09-19T07:49:23.425Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:23.425Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:23.425Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:23.425Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:24.470Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:24.470Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:24.470Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:24.470Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:24.487Z info
+Attaching additional modules:
+---
+
+--- 2026-09-19T07:49:24.497Z log
+┌───────────────────────────────────────────────┬──────┬─────────────┐
+│ Name                                          │ Type │ Size        │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/assets/error-boundary-DEPHMDHv.js         │ esm  │ 8.22 KiB    │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/assets/layout-segment-context-CVUaRAbM.js │ esm  │ 1.70 KiB    │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/assets/page-DcGkBiNp.js                   │ esm  │ 491.21 KiB  │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/index.js                                  │ esm  │ 570.67 KiB  │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ ssr/__vite_rsc_assets_manifest.js             │ esm  │ 1.09 KiB    │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ __vite_rsc_assets_manifest.js                 │ esm  │ 1.09 KiB    │
+├───────────────────────────────────────────────┼──────┼─────────────┤
+│ Total (6 modules)                             │      │ 1073.98 KiB │
+└───────────────────────────────────────────────┴──────┴─────────────┘
+---
+
+--- 2026-09-19T07:49:24.503Z info
+🌀 Building list of assets...
+---
+
+--- 2026-09-19T07:49:24.507Z info
+✨ Read 15 files from the assets directory C:\Users\avina\Documents\TRH360-Universal-CRM-Source-2026-09-11 (1)\dist\client
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/.assetsignore
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/.vite
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/assets
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/favicon.svg
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/file.svg
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/globe.svg
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/window.svg
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/_headers
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/assets\framework-CXnKph_e.js
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/assets\index-Bem6R5oU.js
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/assets\index-DxXDke-F.css
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/assets\layout-segment-context-BOIdQKZB.js
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/assets\page-GWn1u7f6.js
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/assets\rolldown-runtime-S-ySWqyJ.js
+---
+
+--- 2026-09-19T07:49:24.508Z debug
+/.vite\manifest.json
+---
+
+--- 2026-09-19T07:49:24.511Z debug
+Ignoring asset: .assetsignore
+---
+
+--- 2026-09-19T07:49:24.512Z debug
+Ignoring asset: _headers
+---
+
+--- 2026-09-19T07:49:24.574Z info
+🌀 Starting asset upload...
+---
+
+--- 2026-09-19T07:49:24.574Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/assets-upload-session
+---
+
+--- 2026-09-19T07:49:24.575Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:24.575Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:24.575Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:24.575Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:26.710Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:26.710Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.710Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.710Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:26.711Z info
+🌀 Found 5 new or modified static assets to upload. Proceeding with upload...
+---
+
+--- 2026-09-19T07:49:26.711Z info
++ /assets/layout-segment-context-BOIdQKZB.js
+---
+
+--- 2026-09-19T07:49:26.711Z info
++ /assets/index-DxXDke-F.css
+---
+
+--- 2026-09-19T07:49:26.711Z info
++ /.vite/manifest.json
+---
+
+--- 2026-09-19T07:49:26.712Z info
++ /assets/page-GWn1u7f6.js
+---
+
+--- 2026-09-19T07:49:26.712Z info
++ /assets/index-Bem6R5oU.js
+---
+
+--- 2026-09-19T07:49:26.715Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/assets/upload?base64=true
+---
+
+--- 2026-09-19T07:49:26.715Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.715Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.715Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.718Z debug
+BODY: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.719Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:26.721Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/assets/upload?base64=true
+---
+
+--- 2026-09-19T07:49:26.722Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.722Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.722Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.723Z debug
+BODY: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.723Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:26.726Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/assets/upload?base64=true
+---
+
+--- 2026-09-19T07:49:26.726Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.726Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.726Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.727Z debug
+BODY: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:26.727Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:27.155Z info
+Asset upload failed. Retrying...
+ TypeError: fetch failed
+---
+
+--- 2026-09-19T07:49:28.174Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/assets/upload?base64=true
+---
+
+--- 2026-09-19T07:49:28.174Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:28.174Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:28.174Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:28.175Z debug
+BODY: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:28.175Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:28.628Z debug
+-- START CF API RESPONSE: Accepted 202
+---
+
+--- 2026-09-19T07:49:28.628Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:28.628Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:28.628Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:28.629Z info
+Uploaded 2 of 5 assets
+---
+
+--- 2026-09-19T07:49:28.629Z debug
+✨ /assets/layout-segment-context-BOIdQKZB.js
+---
+
+--- 2026-09-19T07:49:28.629Z debug
+✨ /assets/index-DxXDke-F.css
+---
+
+--- 2026-09-19T07:49:28.697Z debug
+-- START CF API RESPONSE: Accepted 202
+---
+
+--- 2026-09-19T07:49:28.697Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:28.697Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:28.697Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:28.697Z info
+Uploaded 3 of 5 assets
+---
+
+--- 2026-09-19T07:49:28.698Z debug
+✨ /assets/index-Bem6R5oU.js
+---
+
+--- 2026-09-19T07:49:29.989Z debug
+-- START CF API RESPONSE: Created 201
+---
+
+--- 2026-09-19T07:49:29.989Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:29.989Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:29.989Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:29.989Z info
+Uploaded 5 of 5 assets
+---
+
+--- 2026-09-19T07:49:29.989Z debug
+✨ /.vite/manifest.json
+---
+
+--- 2026-09-19T07:49:29.989Z debug
+✨ /assets/page-GWn1u7f6.js
+---
+
+--- 2026-09-19T07:49:29.989Z log
+✨ Success! Uploaded 5 files (6 already uploaded) (3.28 sec)
+
+---
+
+--- 2026-09-19T07:49:30.034Z log
+Total Upload: 1821.57 KiB / gzip: 376.45 KiB
+---
+
+--- 2026-09-19T07:49:30.035Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/settings
+---
+
+--- 2026-09-19T07:49:30.035Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:30.035Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:30.035Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:30.035Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:31.183Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:31.183Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:31.183Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:31.183Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:31.188Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/versions
+---
+
+--- 2026-09-19T07:49:31.188Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:31.188Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:31.188Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:31.194Z debug
+BODY: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:31.194Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:34.552Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:34.552Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:34.552Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:34.552Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:34.553Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/deployments
+---
+
+--- 2026-09-19T07:49:34.553Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:34.553Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:34.553Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:34.553Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+-- START CF API REQUEST: PATCH https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/script-settings
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:35.853Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:37.263Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:37.263Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:37.263Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:37.263Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:37.264Z log
+Worker Startup Time: 10 ms
+---
+
+--- 2026-09-19T07:49:37.265Z log
+Your Worker has access to the following bindings:
+---
+
+--- 2026-09-19T07:49:37.265Z log
+Binding                       Resource         
+---
+
+--- 2026-09-19T07:49:37.265Z log
+env.DB (site-creator-d1)      D1 Database      
+---
+
+--- 2026-09-19T07:49:37.265Z log
+
+---
+
+--- 2026-09-19T07:49:37.267Z log
+Uploaded trh360-crm-local (13.84 sec)
+---
+
+--- 2026-09-19T07:49:37.268Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/subdomain
+---
+
+--- 2026-09-19T07:49:37.269Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:37.269Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:37.269Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:37.269Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:38.390Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:38.390Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:38.390Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:38.390Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:38.391Z debug
+-- START CF API REQUEST: GET https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/subdomain
+---
+
+--- 2026-09-19T07:49:38.391Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:38.391Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:38.391Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:38.391Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:39.502Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:39.502Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:39.502Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:39.502Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:39.503Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/4e3d4b1cfea5fe6a065321ca7298ee6b/workers/scripts/trh360-crm-local/subdomain
+---
+
+--- 2026-09-19T07:49:39.503Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:39.503Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:39.503Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:39.503Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-09-19T07:49:40.784Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-09-19T07:49:40.785Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:40.785Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-09-19T07:49:40.785Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-09-19T07:49:40.785Z log
+Deployed trh360-crm-local triggers (3.52 sec)
+---
+
+--- 2026-09-19T07:49:40.785Z log
+  https://trh360-crm-local.ashmithareddy-20.workers.dev
+---
+
+--- 2026-09-19T07:49:40.785Z log
+Current Version ID: 3229676c-ca83-42d7-bf47-bc51d568a858
+---
+
+--- 2026-09-19T07:49:40.786Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"deploy worker script","timestamp":1789804180786,"properties":{"amplitude_session_id":1789804180785,"amplitude_event_id":0,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"none","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":false,"agent":null,"category":"Workers","os":"win32:x64","usesTypeScript":false,"durationMs":19977}}
+---
+
+--- 2026-09-19T07:49:40.788Z debug
+Metrics dispatcher: Posting data {"deviceId":"6f25ed55-2290-4378-8372-ab21b7224b7d","event":"wrangler command completed","timestamp":1789804180788,"properties":{"amplitude_session_id":1789804156209,"amplitude_event_id":1,"wranglerVersion":"4.92.0","wranglerMajorVersion":4,"wranglerMinorVersion":92,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":22,"packageManager":"npm","isFirstUsage":false,"configFileType":"json","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":true,"hasAssets":true,"agent":null,"argsUsed":[],"argsCombination":"","sanitizedCommand":"deploy","sanitizedArgs":{},"durationMs":24689}}
+---

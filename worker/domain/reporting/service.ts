@@ -28,7 +28,7 @@ export interface FactDimensions {
   [key: string]: string | number | boolean | undefined;
 }
 export interface ReportingFact { sourceEventId: string; type: ReportingFactType; occurredAt: Date; dimensions: FactDimensions; valueMinor?: number; }
-export interface ReportScope { tenantId: string; actorMembershipId: string; roles: readonly string[]; branchIds?: readonly string[]; }
+export interface ReportScope { tenantId: string; actorMembershipId: string; roles: readonly string[]; /** Branch-scoped reports exclude facts that cannot be attributed to a branch. */ branchIds?: readonly string[]; }
 export interface ReportFilters { from?: Date; to?: Date; branchId?: string; sourceId?: string; campaignId?: string; assignedMembershipId?: string; channel?: string; diseaseId?: string; treatmentId?: string; }
 export interface MetricValue { key: string; version: string; numerator: number; denominator: number; value: number | null; notApplicable: boolean; unknown: number; sampleSize: number; asOf: string; cohortBasis: string; filters: ReportFilters; }
 export interface ReportDefinition { key: string; version: string; formula: string; numerator: string; denominator: string; unknownRule: string; }
@@ -59,19 +59,16 @@ function sanitizeDimensions(dimensions: FactDimensions): FactDimensions {
   return clean;
 }
 function isPrivileged(scope: ReportScope) { return scope.roles.some((role) => privilegedRoles.has(role)); }
-function authorizes(scope: ReportScope, dimensions: FactDimensions): boolean {
-  if (scope.branchIds?.length && (!dimensions.branchId || !scope.branchIds.includes(String(dimensions.branchId)))) return false;
-  return isPrivileged(scope) || dimensions.assignedMembershipId === scope.actorMembershipId || dimensions.originalAssignedMembershipId === scope.actorMembershipId;
-}
-function matchesFilters(fact: LoadedFact, filters: ReportFilters) {
-  const d = fact.dimensions;
-  return (!filters.from || fact.occurredAt >= filters.from) && (!filters.to || fact.occurredAt <= filters.to)
-    && (!filters.branchId || d.branchId === filters.branchId) && (!filters.sourceId || d.sourceId === filters.sourceId)
-    && (!filters.campaignId || d.campaignId === filters.campaignId) && (!filters.assignedMembershipId || d.assignedMembershipId === filters.assignedMembershipId || d.originalAssignedMembershipId === filters.assignedMembershipId)
-    && (!filters.channel || d.channel === filters.channel) && (!filters.diseaseId || d.diseaseId === filters.diseaseId) && (!filters.treatmentId || d.treatmentId === filters.treatmentId);
-}
 type LoadedFact = ReportingFact & { id: string };
-function distinctLeadIds(facts: readonly LoadedFact[], type: string) { return new Set(facts.filter((fact) => fact.type === type).map((fact) => String(fact.dimensions.leadId ?? fact.sourceEventId))); }
+/** A fact never substitutes its event ID for a lead identity: event IDs change on retry/correction. */
+function distinctLeadIds(facts: readonly LoadedFact[], type: string) {
+  return new Set(facts.filter((fact) => fact.type === type && typeof fact.dimensions.leadId === "string" && fact.dimensions.leadId.length > 0).map((fact) => fact.dimensions.leadId as string));
+}
+function evidenceBackedConversions(facts: readonly LoadedFact[]) {
+  return new Set(facts.filter((fact) => (fact.type === "conversion.completed" || fact.type === "treatment.completed")
+    && typeof fact.dimensions.leadId === "string" && typeof fact.dimensions.evidenceId === "string" && fact.dimensions.evidenceId.length > 0)
+    .map((fact) => fact.dimensions.leadId as string));
+}
 function metric(definition: ReportDefinition, numeratorSet: Set<string>, denominatorSet: Set<string>, unknown: number, asOf: Date, filters: ReportFilters): MetricValue {
   const denominator = denominatorSet.size; const numerator = [...numeratorSet].filter((lead) => denominatorSet.has(lead)).length;
   return { key: definition.key, version: definition.version, numerator, denominator, value: denominator ? numerator / denominator : null, notApplicable: denominator === 0, unknown, sampleSize: denominator, asOf: asOf.toISOString(), cohortBasis: definition.denominator, filters };
@@ -96,6 +93,8 @@ export class ReportingService {
   /** The unique tenant/source event key is the idempotency boundary for at-least-once projection consumers. */
   async project(scope: Pick<ReportScope, "tenantId" | "actorMembershipId">, fact: ReportingFact): Promise<boolean> {
     if (!fact.sourceEventId || !fact.type || Number.isNaN(fact.occurredAt.getTime())) throw new ApiError("VALIDATION_FAILED", 422, "Reporting fact is incomplete");
+    if ((fact.type === "conversion.completed" || fact.type === "treatment.completed") && (!fact.dimensions.leadId || !fact.dimensions.evidenceId)) throw new ApiError("VALIDATION_FAILED", 422, "Conversion reporting requires stable lead and evidence identity");
+    if (fact.valueMinor !== undefined && !Number.isSafeInteger(fact.valueMinor)) throw new ApiError("VALIDATION_FAILED", 422, "Reporting money must be integer minor units");
     const at = this.now().getTime();
     const result = await this.db.prepare("INSERT OR IGNORE INTO crm_reporting_facts (id, tenant_id, source_event_id, fact_type, occurred_at, dimensions_json, value_minor, created_at, created_by_membership_id, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)")
       .bind(id(), scope.tenantId, fact.sourceEventId, fact.type, fact.occurredAt.getTime(), JSON.stringify(sanitizeDimensions(fact.dimensions)), fact.valueMinor ?? null, at, scope.actorMembershipId).run();
@@ -106,8 +105,10 @@ export class ReportingService {
     this.requireManager(scope);
     const facts = await this.load(scope, {});
     const dayFacts = facts.filter((fact) => isoDate(fact.occurredAt, timezone) === localDate);
-    const summary = { received: distinctLeadIds(dayFacts, "lead.received").size, converted: distinctLeadIds(dayFacts, "conversion.completed").size, finalLoss: distinctLeadIds(dayFacts, "lead.final_loss").size, facts: dayFacts.length, timezone };
-    const watermark = dayFacts.map((fact) => fact.sourceEventId).sort().at(-1) ?? "none";
+    const summary = { received: distinctLeadIds(dayFacts, "lead.received").size, converted: evidenceBackedConversions(dayFacts).size, finalLoss: distinctLeadIds(dayFacts, "lead.final_loss").size, facts: dayFacts.length, timezone };
+    const latest = dayFacts.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime() || b.id.localeCompare(a.id))[0];
+    // Watermark is a replay cursor (time + immutable fact ID), not lexicographic provider-event text.
+    const watermark = JSON.stringify(latest ? { occurredAt: latest.occurredAt.toISOString(), factId: latest.id, sourceEventId: latest.sourceEventId, factCount: dayFacts.length } : { factCount: 0 });
     await this.db.prepare("INSERT INTO crm_daily_aggregates (id, tenant_id, metric_key, local_date, dimensions_hash, value_json, watermark, created_at, created_by_membership_id, updated_at, updated_by_membership_id, version) VALUES (?, ?, 'daily_funnel', ?, 'all', ?, ?, ?, ?, ?, ?, 1) ON CONFLICT(tenant_id, metric_key, local_date, dimensions_hash) DO UPDATE SET value_json = excluded.value_json, watermark = excluded.watermark, updated_at = excluded.updated_at, updated_by_membership_id = excluded.updated_by_membership_id, version = crm_daily_aggregates.version + 1")
       .bind(id(), scope.tenantId, localDate, JSON.stringify(summary), watermark, this.now().getTime(), scope.actorMembershipId, this.now().getTime(), scope.actorMembershipId).run();
     return { localDate, watermark, facts: dayFacts.length };
@@ -115,7 +116,7 @@ export class ReportingService {
 
   async funnel(scope: ReportScope, filters: ReportFilters = {}): Promise<MetricValue[]> {
     const facts = await this.load(scope, filters); const asOf = this.now();
-    const received = distinctLeadIds(facts, "lead.received"); const connected = distinctLeadIds(facts, "call.meaningful_connection"); const qualified = distinctLeadIds(facts, "qualification.completed"); const hot = distinctLeadIds(facts, "qualification.hot"); const booked = distinctLeadIds(facts, "appointment.booked"); const arrived = distinctLeadIds(facts, "appointment.arrived"); const consulted = distinctLeadIds(facts, "consultation.completed"); const procedure = distinctLeadIds(facts, "procedure.booked"); const completed = new Set([...distinctLeadIds(facts, "treatment.completed"), ...distinctLeadIds(facts, "conversion.completed")]);
+    const received = distinctLeadIds(facts, "lead.received"); const connected = distinctLeadIds(facts, "call.meaningful_connection"); const qualified = distinctLeadIds(facts, "qualification.completed"); const hot = distinctLeadIds(facts, "qualification.hot"); const booked = distinctLeadIds(facts, "appointment.booked"); const arrived = distinctLeadIds(facts, "appointment.arrived"); const consulted = distinctLeadIds(facts, "consultation.completed"); const procedure = distinctLeadIds(facts, "procedure.booked"); const completed = evidenceBackedConversions(facts);
     const attempted = distinctLeadIds(facts, "call.attempted"); const losses = distinctLeadIds(facts, "lead.final_loss");
     const defs = Object.fromEntries(METRIC_DEFINITIONS.map((item) => [item.key, item]));
     return [
@@ -143,8 +144,8 @@ export class ReportingService {
   async channels(scope: ReportScope, filters: ReportFilters = {}) { return this.breakdown(scope, filters, "channel"); }
   async finance(scope: ReportScope, filters: ReportFilters = {}) {
     const facts = await this.load(scope, filters); const values: Record<string, number> = {};
-    for (const fact of facts.filter((item) => item.type === "revenue.recognized" || item.type === "revenue.reversed")) { const currency = String(fact.dimensions.currency ?? "unknown"); values[currency] = (values[currency] ?? 0) + (fact.valueMinor ?? 0); }
-    return { recognizedNetMinorByCurrency: values, revenueBearingLeads: distinctLeadIds(facts, "revenue.recognized").size, receivedLeads: distinctLeadIds(facts, "lead.received").size, asOf: this.now().toISOString(), filters };
+    for (const fact of facts.filter((item) => (item.type === "revenue.recognized" || item.type === "revenue.reversed") && typeof item.dimensions.leadId === "string" && typeof item.dimensions.evidenceId === "string" && Number.isSafeInteger(item.valueMinor))) { const currency = String(fact.dimensions.currency ?? "unknown"); values[currency] = (values[currency] ?? 0) + (fact.valueMinor ?? 0); }
+    return { recognizedNetMinorByCurrency: values, revenueBearingLeads: new Set(facts.filter((item) => item.type === "revenue.recognized" && item.dimensions.leadId && item.dimensions.evidenceId).map((item) => item.dimensions.leadId as string)).size, receivedLeads: distinctLeadIds(facts, "lead.received").size, asOf: this.now().toISOString(), filters };
   }
   async recovery(scope: ReportScope, filters: ReportFilters = {}) {
     const facts = await this.load(scope, filters); const defs = Object.fromEntries(METRIC_DEFINITIONS.map((item) => [item.key, item])); const enrolled = distinctLeadIds(facts, "recovery.enrolled");
@@ -158,15 +159,15 @@ export class ReportingService {
     const summarize = (name: string, predicate: (items: LoadedFact[]) => boolean) => {
       const cohort = [...byLead.entries()].filter(([, items]) => predicate(items));
       const evidence = (type: string) => cohort.filter(([, items]) => items.some((item) => item.type === type)).length;
-      const conversionTimes = cohort.map(([, items]) => { const received = items.find((item) => item.type === "lead.received")?.occurredAt; const converted = items.find((item) => item.type === "conversion.completed")?.occurredAt; return received && converted ? converted.getTime() - received.getTime() : undefined; }).filter((value): value is number => value !== undefined);
+      const conversionTimes = cohort.map(([, items]) => { const received = items.find((item) => item.type === "lead.received")?.occurredAt; const converted = items.find((item) => (item.type === "conversion.completed" || item.type === "treatment.completed") && typeof item.dimensions.evidenceId === "string" && item.dimensions.evidenceId.length > 0)?.occurredAt; return received && converted ? converted.getTime() - received.getTime() : undefined; }).filter((value): value is number => value !== undefined);
       return { cohort: name, size: cohort.length, firstResponse: evidence("call.attempted"), connected: evidence("call.meaningful_connection"), followUpCompleted: evidence("follow_up.completed"), delivered: evidence("message.delivered"), replied: evidence("message.replied"), booked: evidence("appointment.booked"), visited: evidence("appointment.arrived"), doctorInteraction: evidence("consultation.completed"), counseling: evidence("counseling.completed"), package: evidence("package.accepted"), insurance: evidence("insurance.approved"), medianConversionMs: conversionTimes.length ? conversionTimes.sort((a, b) => a - b)[Math.floor(conversionTimes.length / 2)] : null, missingEvidence: cohort.filter(([, items]) => !items.some((item) => item.dimensions.evidenceId)).length };
     };
-    return { basis: "same entry filters and observation cutoff; active/pending excluded", converted: summarize("converted", (items) => items.some((item) => item.type === "conversion.completed")), finalLoss: summarize("final_loss", (items) => items.some((item) => item.type === "lead.final_loss")), activeOrUnmatured: summarize("active_or_unmatured", (items) => !items.some((item) => item.type === "conversion.completed" || item.type === "lead.final_loss")), asOf: this.now().toISOString(), filters };
+    return { basis: "same entry filters and observation cutoff; active/pending excluded", converted: summarize("converted", (items) => items.some((item) => (item.type === "conversion.completed" || item.type === "treatment.completed") && typeof item.dimensions.evidenceId === "string" && item.dimensions.evidenceId.length > 0)), finalLoss: summarize("final_loss", (items) => items.some((item) => item.type === "lead.final_loss")), activeOrUnmatured: summarize("active_or_unmatured", (items) => !items.some((item) => ((item.type === "conversion.completed" || item.type === "treatment.completed") && typeof item.dimensions.evidenceId === "string" && item.dimensions.evidenceId.length > 0) || item.type === "lead.final_loss")), asOf: this.now().toISOString(), filters };
   }
 
   async drillDown(scope: ReportScope, filters: ReportFilters = {}): Promise<{ rows: DrillDownRow[]; asOf: string; filters: ReportFilters }> {
-    const facts = await this.load(scope, filters);
-    return { rows: facts.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime()).slice(0, 500).map((fact) => ({ leadId: typeof fact.dimensions.leadId === "string" ? fact.dimensions.leadId : undefined, factType: fact.type, occurredAt: fact.occurredAt.toISOString(), evidenceId: typeof fact.dimensions.evidenceId === "string" ? fact.dimensions.evidenceId : undefined, dimensions: fact.dimensions, valueMinor: fact.valueMinor })), asOf: this.now().toISOString(), filters };
+    const facts = await this.load(scope, filters, 500);
+    return { rows: facts.map((fact) => ({ leadId: typeof fact.dimensions.leadId === "string" ? fact.dimensions.leadId : undefined, factType: fact.type, occurredAt: fact.occurredAt.toISOString(), evidenceId: typeof fact.dimensions.evidenceId === "string" ? fact.dimensions.evidenceId : undefined, dimensions: fact.dimensions, valueMinor: fact.valueMinor })), asOf: this.now().toISOString(), filters };
   }
 
   async diagnostic(scope: ReportScope, days: 1 | 7 | 15 | 30, filters: ReportFilters = {}) {
@@ -179,12 +180,12 @@ export class ReportingService {
   }
 
   async managementQueue(scope: ReportScope, period: "morning" | "day" | "end") {
-    this.requireManager(scope); const now = this.now().getTime(); const leadScope = this.branchSql(scope, "l.branch_id"); const taskScope = this.branchSql(scope, "l.branch_id");
+    this.requireManager(scope); const now = this.now().getTime(); const leadScope = this.branchSql(scope, "l.branch_id"); const taskScope = this.branchSql(scope, "l.branch_id"); const appointmentScope = this.branchSql(scope, "a.branch_id"); const factScope = this.factSql(scope, {});
     const [newLeads, overdue, appointments, failures] = await Promise.all([
       this.db.prepare(`SELECT l.id, l.assigned_membership_id AS assignedMembershipId, l.lifecycle_stage AS stage, l.received_at AS receivedAt FROM crm_lead_episodes l WHERE l.tenant_id = ? AND l.archived_at IS NULL ${leadScope.sql} AND (l.assigned_membership_id IS NULL OR l.lifecycle_stage = 'received') ORDER BY l.received_at ASC LIMIT 100`).bind(scope.tenantId, ...leadScope.values).all(),
       this.db.prepare(`SELECT t.id, t.lead_id AS leadId, t.assignee_membership_id AS assigneeMembershipId, t.title, t.due_at AS dueAt, t.priority FROM crm_tasks t LEFT JOIN crm_lead_episodes l ON l.id = t.lead_id AND l.tenant_id = t.tenant_id WHERE t.tenant_id = ? AND t.status = 'open' AND t.due_at < ? ${taskScope.sql} ORDER BY t.due_at ASC LIMIT 100`).bind(scope.tenantId, now, ...taskScope.values).all(),
-      this.db.prepare(`SELECT a.id, a.lead_id AS leadId, a.doctor_id AS doctorId, a.starts_at AS startsAt, a.status FROM crm_appointments a WHERE a.tenant_id = ? AND a.starts_at >= ? AND a.starts_at < ? ORDER BY a.starts_at ASC LIMIT 100`).bind(scope.tenantId, now, now + 86_400_000).all(),
-      this.db.prepare("SELECT source_event_id AS sourceEventId, dimensions_json AS dimensionsJson, occurred_at AS occurredAt FROM crm_reporting_facts WHERE tenant_id = ? AND fact_type = 'message.failed' AND occurred_at >= ? ORDER BY occurred_at DESC LIMIT 100").bind(scope.tenantId, now - 86_400_000).all(),
+      this.db.prepare(`SELECT a.id, a.lead_id AS leadId, a.doctor_id AS doctorId, a.starts_at AS startsAt, a.status FROM crm_appointments a WHERE a.tenant_id = ? AND a.starts_at >= ? AND a.starts_at < ? ${appointmentScope.sql} ORDER BY a.starts_at ASC LIMIT 100`).bind(scope.tenantId, now, now + 86_400_000, ...appointmentScope.values).all(),
+      this.db.prepare(`SELECT source_event_id AS sourceEventId, dimensions_json AS dimensionsJson, occurred_at AS occurredAt FROM crm_reporting_facts WHERE tenant_id = ? AND fact_type = 'message.failed' AND occurred_at >= ? ${factScope.sql} ORDER BY occurred_at DESC, id DESC LIMIT 100`).bind(scope.tenantId, now - 86_400_000, ...factScope.values).all(),
     ]);
     return { period, generatedAt: new Date(now).toISOString(), queues: { newUnassignedOrUntouched: newLeads.results, overdueWork: overdue.results, todayAppointments: appointments.results, deliveryFailures: failures.results }, disclosure: period === "end" ? "End-of-day review separates outcome evidence from process compliance; inspect final-loss/recovery and quality evidence in drill-down." : "Queue is live operational state, not delayed report aggregate." };
   }
@@ -201,14 +202,35 @@ export class ReportingService {
 
   private async breakdown(scope: ReportScope, filters: ReportFilters, dimension: keyof FactDimensions) {
     const facts = await this.load(scope, filters); const values = new Map<string, { received: Set<string>; converted: Set<string>; finalLoss: Set<string> }>();
-    for (const fact of facts) { const key = String(fact.dimensions[dimension] ?? "unknown"); const row = values.get(key) ?? { received: new Set(), converted: new Set(), finalLoss: new Set() }; const lead = String(fact.dimensions.leadId ?? fact.sourceEventId); if (fact.type === "lead.received") row.received.add(lead); if (fact.type === "conversion.completed") row.converted.add(lead); if (fact.type === "lead.final_loss") row.finalLoss.add(lead); values.set(key, row); }
+    for (const fact of facts) { const lead = typeof fact.dimensions.leadId === "string" ? fact.dimensions.leadId : undefined; if (!lead) continue; const key = String(fact.dimensions[dimension] ?? "unknown"); const row = values.get(key) ?? { received: new Set(), converted: new Set(), finalLoss: new Set() }; if (fact.type === "lead.received") row.received.add(lead); if ((fact.type === "conversion.completed" || fact.type === "treatment.completed") && typeof fact.dimensions.evidenceId === "string" && fact.dimensions.evidenceId.length > 0) row.converted.add(lead); if (fact.type === "lead.final_loss") row.finalLoss.add(lead); values.set(key, row); }
     return { dimension, rows: [...values].map(([key, row]) => ({ key, received: row.received.size, converted: row.converted.size, finalLoss: row.finalLoss.size, conversionRate: row.received.size ? row.converted.size / row.received.size : null })), asOf: this.now().toISOString(), filters };
   }
-  private async load(scope: ReportScope, filters: ReportFilters): Promise<LoadedFact[]> {
+  /** Reads all aggregate facts in deterministic pages. SQL applies authorization and filters before every LIMIT. */
+  private async load(scope: ReportScope, filters: ReportFilters, maxRows?: number): Promise<LoadedFact[]> {
     this.assertFilterScope(scope, filters);
-    const rows = await this.db.prepare("SELECT id, source_event_id AS sourceEventId, fact_type AS factType, occurred_at AS occurredAt, dimensions_json AS dimensionsJson, value_minor AS valueMinor FROM crm_reporting_facts WHERE tenant_id = ? AND occurred_at >= COALESCE(?, occurred_at) AND occurred_at <= COALESCE(?, occurred_at) ORDER BY occurred_at ASC LIMIT 20000")
-      .bind(scope.tenantId, filters.from?.getTime() ?? null, filters.to?.getTime() ?? null).all<{ id: string; sourceEventId: string; factType: string; occurredAt: number; dimensionsJson: string; valueMinor: number | null }>();
-    return rows.results.map((row) => ({ id: row.id, sourceEventId: row.sourceEventId, type: row.factType, occurredAt: new Date(row.occurredAt), dimensions: JSON.parse(row.dimensionsJson) as FactDimensions, ...(row.valueMinor === null ? {} : { valueMinor: row.valueMinor }) })).filter((fact) => authorizes(scope, fact.dimensions) && matchesFilters(fact, filters));
+    const all: LoadedFact[] = []; let afterOccurredAt = -1; let afterId = ""; const pageSize = 1_000;
+    while (maxRows === undefined || all.length < maxRows) {
+      const predicate = this.factSql(scope, filters); const limit = Math.min(pageSize, maxRows === undefined ? pageSize : maxRows - all.length);
+      const rows = await this.db.prepare(`SELECT id, source_event_id AS sourceEventId, fact_type AS factType, occurred_at AS occurredAt, dimensions_json AS dimensionsJson, value_minor AS valueMinor FROM crm_reporting_facts WHERE tenant_id = ? ${predicate.sql} AND (occurred_at > ? OR (occurred_at = ? AND id > ?)) ORDER BY occurred_at ASC, id ASC LIMIT ?`)
+        .bind(scope.tenantId, ...predicate.values, afterOccurredAt, afterOccurredAt, afterId, limit).all<{ id: string; sourceEventId: string; factType: string; occurredAt: number; dimensionsJson: string; valueMinor: number | null }>();
+      if (!rows.results.length) break;
+      for (const row of rows.results) all.push({ id: row.id, sourceEventId: row.sourceEventId, type: row.factType, occurredAt: new Date(row.occurredAt), dimensions: JSON.parse(row.dimensionsJson) as FactDimensions, ...(row.valueMinor === null ? {} : { valueMinor: row.valueMinor }) });
+      const last = rows.results.at(-1)!; afterOccurredAt = last.occurredAt; afterId = last.id;
+      if (rows.results.length < limit) break;
+    }
+    return all;
+  }
+  /** JSON dimensions are indexed projection data; no row is fetched before its scope/filter predicate passes. */
+  private factSql(scope: ReportScope, filters: ReportFilters) {
+    const clauses: string[] = []; const values: Array<string | number> = []; const json = (key: string) => `json_extract(dimensions_json, '$.${key}')`;
+    if (filters.from) { clauses.push("AND occurred_at >= ?"); values.push(filters.from.getTime()); }
+    if (filters.to) { clauses.push("AND occurred_at <= ?"); values.push(filters.to.getTime()); }
+    for (const [key, value] of Object.entries({ branchId: filters.branchId, sourceId: filters.sourceId, campaignId: filters.campaignId, channel: filters.channel, diseaseId: filters.diseaseId, treatmentId: filters.treatmentId })) if (value) { clauses.push(`AND ${json(key)} = ?`); values.push(value); }
+    if (filters.assignedMembershipId) { clauses.push(`AND (${json("assignedMembershipId")} = ? OR ${json("originalAssignedMembershipId")} = ?)`); values.push(filters.assignedMembershipId, filters.assignedMembershipId); }
+    // A caller with no branch grants is tenant-wide; a caller with explicit branch grants never sees branchless facts.
+    if (scope.branchIds?.length) { clauses.push(`AND ${json("branchId")} IS NOT NULL AND ${json("branchId")} IN (${scope.branchIds.map(() => "?").join(",")})`); values.push(...scope.branchIds); }
+    if (!isPrivileged(scope)) { clauses.push(`AND (${json("assignedMembershipId")} = ? OR ${json("originalAssignedMembershipId")} = ?)`); values.push(scope.actorMembershipId, scope.actorMembershipId); }
+    return { sql: clauses.join(" "), values };
   }
   private assertFilterScope(scope: ReportScope, filters: ReportFilters) {
     if (filters.branchId && scope.branchIds?.length && !scope.branchIds.includes(filters.branchId)) throw new ApiError("FORBIDDEN", 403, "Report scope is unavailable");

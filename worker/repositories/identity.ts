@@ -30,6 +30,13 @@ export class IdentityRepository {
     return this.toMembership(result.results ?? []);
   }
 
+  async revokeSession(sessionId: string, membershipId: string, tenantId: string, now: Date): Promise<boolean> {
+    if (!this.db) return false;
+    const result = await this.db.prepare("UPDATE crm_sessions SET revoked_at = ? WHERE id = ? AND membership_id = ? AND tenant_id = ? AND revoked_at IS NULL")
+      .bind(now.getTime(), sessionId, membershipId, tenantId).run();
+    return result.meta.changes === 1;
+  }
+
   async activeSession(sessionId: string, membershipId: string, tenantId: string, now: Date): Promise<boolean> {
     if (!this.db) return false;
     const result = await this.db.prepare("SELECT id FROM crm_sessions WHERE id = ? AND membership_id = ? AND tenant_id = ? AND revoked_at IS NULL AND expires_at > ?")

@@ -6,8 +6,9 @@ const testEnv = {
   DEPLOYMENT_ENV: "test",
   DEPLOYMENT_VERSION: "test",
   ALLOW_TEST_IDENTITY: "true",
+  TEST_IDENTITY_SECRET: "integration-test-secret",
 } as Env;
-const identity = { "X-Test-Identity": "integration-user:tenant-integration:membership-integration" };
+const identity = { "X-Test-Identity": "integration-user:tenant-integration:membership-integration", "X-Test-Identity-Secret": "integration-test-secret" };
 
 function api(path: string, init: RequestInit = {}) {
   return routeApiRequest(new Request(`https://crm.example${path}`, init), testEnv, { requestId: () => "integration-request" });
@@ -28,7 +29,7 @@ describe("composed API runtime", () => {
   it("reaches the authenticated composition boundary without fabricating a database fallback", async () => {
     const response = await api("/api/v1/leads", {
       method: "POST",
-      headers: { ...identity, "Content-Type": "application/json" },
+      headers: { ...identity, "Content-Type": "application/json", "Idempotency-Key": "composition-boundary" },
       body: JSON.stringify({}),
     });
     expect(response?.status).toBe(503);

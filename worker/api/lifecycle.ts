@@ -1,4 +1,5 @@
 import { transitionCommandSchema } from "../../lib/api/lifecycle";
+import { idempotencyKeySchema } from "../../lib/api/contracts";
 import { LifecycleService } from "../domain/lifecycle/service";
 import type { RequestContext } from "./context";
 import { ApiError, methodNotAllowed } from "./errors";
@@ -16,6 +17,9 @@ export async function handleLifecycleRoutes(request: Request, context: RequestCo
   const match = new URL(request.url).pathname.match(transitionPath);
   if (!match) return undefined;
   if (request.method !== "POST") return methodNotAllowed(context.requestId, ["POST"]);
-  const data = await dependencies.lifecycle.transition(lifecycleContext(context), match[1], parse(transitionCommandSchema, await readJsonBody(request)));
+  const idempotencyKey = parse(idempotencyKeySchema, request.headers.get("Idempotency-Key") ?? "");
+  const command = parse(transitionCommandSchema, await readJsonBody(request));
+  if (command.commandId && command.commandId !== idempotencyKey) throw new ApiError("CONFLICT", 409, "Command ID must match the Idempotency-Key");
+  const data = await dependencies.lifecycle.transition(lifecycleContext(context), match[1], { ...command, commandId: idempotencyKey });
   return Response.json({ success: true, data }, { status: 201, headers: { "X-Request-Id": context.requestId } });
 }

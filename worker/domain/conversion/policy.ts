@@ -8,7 +8,12 @@ export interface ConversionEvidence {
 }
 
 export function isEligibleConversion(evidence: Pick<ConversionEvidence, "completion" | "evidenceId">): boolean {
-  return Boolean(evidence.evidenceId) && ["medical_management_completed", "procedure_completed", "treatment_completed"].includes(evidence.completion);
+  return Boolean(evidence.evidenceId?.trim()) && ["medical_management_completed", "procedure_completed", "treatment_completed"].includes(evidence.completion);
+}
+
+/** A downstream projection must pass the clinical completion record, never infer conversion from a financial or appointment event. */
+export function requireEligibleConversion(evidence: Pick<ConversionEvidence, "completion" | "evidenceId">): void {
+  if (!isEligibleConversion(evidence)) throw new Error("Conversion requires eligible completed-treatment evidence");
 }
 
 /** Counts lead episodes rather than ledger or treatment rows, preventing event multiplication. */

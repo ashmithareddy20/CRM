@@ -18,4 +18,6 @@ Sensitive fields use AES-256-GCM with a fresh 96-bit nonce and AAD `crm:v1:tenan
 
 Exact phone/email lookup uses a tenant- and purpose-separated HMAC-SHA-256 blind index after normalization. There is no plaintext name/identifier substring search and no full-table decryption fallback.
 
-Audit events are append-only commands. They record actor, tenant, request ID, resource/action/time, reason, linked evidence, and only allow-listed before/after metadata. They redact identifiers/free text and include a tamper-evident HMAC anchor which should be periodically exported to an independent immutable store. Corrections append a new event; they never overwrite old evidence.
+Audit events are append-only commands. They record actor, tenant, request ID, resource/action/time, opaque evidence reference, constrained reason codes, and a strict allow-list of primitive operational before/after fields. They never copy identifiers, free text, tokens, ciphertext, or raw request data. Each record hashes the previous tenant anchor and may publish the result through the independent `AuditAnchorStore` seam. Corrections append a new event; they never overwrite old evidence.
+
+Evidence upload/download helpers use tenant-prefixed private R2 keys, repository ownership/existence checks, malware-clean status, content/type limits, and authorization on every proxied download. Domain commands requiring evidence must call `requireEvidenceOwnership`; non-empty evidence IDs are not proof.

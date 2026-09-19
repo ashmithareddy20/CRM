@@ -8,7 +8,7 @@ import { createSessionCookie, readSessionCookie } from "../../../worker/auth/ses
 import { verifyOidcJwt } from "../../../worker/auth/oidc";
 
 const key = base64UrlEncode(crypto.getRandomValues(new Uint8Array(32)));
-const env = { DEPLOYMENT_ENV: "test", FIELD_ENCRYPTION_KEYS: JSON.stringify({ v1: key, v2: base64UrlEncode(crypto.getRandomValues(new Uint8Array(32))) }), FIELD_ENCRYPTION_ACTIVE_VERSION: "v1", BLIND_INDEX_KEY: key, AUDIT_ANCHOR_KEY: key };
+const env = { DEPLOYMENT_ENV: "test", FIELD_ENCRYPTION_KEYS: JSON.stringify({ v1: key, v2: base64UrlEncode(crypto.getRandomValues(new Uint8Array(32))) }), FIELD_ENCRYPTION_ACTIVE_VERSION: "v1", BLIND_INDEX_KEY: key, AUDIT_ANCHOR_KEY: key, SESSION_SIGNING_KEY: key };
 
 describe("security foundation", () => {
   it("encrypts with record/purpose AAD and supports versioned keys", async () => {
@@ -35,9 +35,9 @@ describe("security foundation", () => {
   });
 
   it("limits test identity to the test environment and denies ungranted capabilities", () => {
-    const request = new Request("https://api.example", { headers: { "X-Test-Identity": "user:tenant:member" } });
+    const request = new Request("https://api.example", { headers: { "X-Test-Identity": "user:tenant:member", "X-Test-Identity-Secret": "test-secret" } });
     expect(localTestActor(request, { DEPLOYMENT_ENV: "production", ALLOW_TEST_IDENTITY: "true" })).toBeUndefined();
-    expect(localTestActor(request, { DEPLOYMENT_ENV: "test", ALLOW_TEST_IDENTITY: "true" })?.tenantId).toBe("tenant");
+    expect(localTestActor(request, { DEPLOYMENT_ENV: "test", ALLOW_TEST_IDENTITY: "true", TEST_IDENTITY_SECRET: "test-secret" })?.tenantId).toBe("tenant");
     const actor = { subject: "u", tenantId: "t", membershipId: "m", roles: ["tenant_administrator"], authentication: "oidc" as const };
     expect(capabilitiesFor(actor.roles).has("configuration:manage")).toBe(true);
     expect(canReadField(actor, "clinical")).toBe(false);

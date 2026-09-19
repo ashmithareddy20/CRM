@@ -1,4 +1,4 @@
-import { callAttemptSchema, callRemarkSchema } from "../../lib/api/lifecycle";
+import { callAttemptSchema, callEventSchema, callRemarkSchema } from "../../lib/api/lifecycle";
 import { CallService } from "../domain/calls/service";
 import type { RequestContext } from "./context";
 import { ApiError, methodNotAllowed } from "./errors";
@@ -20,10 +20,7 @@ export async function handleCallRoutes(request: Request, context: RequestContext
   const event = path.match(callEventsPath);
   if (event) {
     if (request.method !== "POST") return methodNotAllowed(context.requestId, ["POST"]);
-    // A provider event still creates an attempt; its provider disposition is never treated as meaningful contact.
-    const raw = await readJsonBody(request);
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new ApiError("VALIDATION_FAILED", 422, "Request validation failed", { body: "Call event must be an object" });
-    const result = await dependencies.calls.recordAttempt(contextFor(context), parse(callAttemptSchema, { ...(raw as Record<string, unknown>), leadId: event[1] }));
+    const result = await dependencies.calls.recordProviderEvent(contextFor(context), event[1], parse(callEventSchema, await readJsonBody(request)));
     return success(context, result, 202);
   }
   const remark = path.match(callRemarkPath);

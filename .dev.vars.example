@@ -5,12 +5,20 @@ OIDC_AUDIENCE=trh360-crm-api
 OIDC_ALLOWED_ALGORITHMS=RS256
 # Optional when discovery's standard JWKS path is not used.
 OIDC_JWKS_URL=https://issuer.example.com/.well-known/jwks.json
+OIDC_AUTHORIZATION_ENDPOINT=https://issuer.example.com/authorize
+OIDC_TOKEN_ENDPOINT=https://issuer.example.com/token
+OIDC_CLIENT_ID=trh360-crm-web
+OIDC_REDIRECT_URI=https://crm.example.com/api/v1/auth/callback
 CORS_ALLOWED_ORIGINS=https://localhost:5173
 # Generate distinct base64url 32-byte values. FIELD_ENCRYPTION_KEYS is a versioned JSON key ring.
 FIELD_ENCRYPTION_KEYS={"v1":"REPLACE_WITH_32_BYTE_BASE64URL_KEY"}
 FIELD_ENCRYPTION_ACTIVE_VERSION=v1
 BLIND_INDEX_KEY=REPLACE_WITH_32_BYTE_BASE64URL_KEY
 AUDIT_ANCHOR_KEY=REPLACE_WITH_32_BYTE_BASE64URL_KEY
+# Must be distinct from AUDIT_ANCHOR_KEY.
+SESSION_SIGNING_KEY=REPLACE_WITH_32_BYTE_BASE64URL_KEY
+# Required only for DEPLOYMENT_ENV=test with ALLOW_TEST_IDENTITY=true; never use an empty/shared value.
+TEST_IDENTITY_SECRET=REPLACE_WITH_TEST_ONLY_RANDOM_SECRET
 # Only the Workers test environment may enable this. It cannot authorize development or production requests.
 ALLOW_TEST_IDENTITY=false
 # Patient ingestion remains synthetic-only locally. Production is fail-closed until policy review.

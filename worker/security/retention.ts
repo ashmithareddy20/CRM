@@ -53,3 +53,49 @@ export interface SuppressionReplayLedger { readonly subjectId: string; readonly 
 export async function replaySuppressionsBeforeJobs(entries: readonly SuppressionReplayLedger[], apply: (entry: SuppressionReplayLedger) => Promise<void>): Promise<void> {
   for (const entry of [...entries].sort((a, b) => a.withdrawnAt.getTime() - b.withdrawnAt.getTime())) await apply(entry);
 }
+
+/** Concrete D1 storage for policy/hold/deletion control records. Tables are control-plane only and never hold PHI. */
+export class D1RetentionRegistry implements PolicyRegistry, LegalHoldRegistry {
+  private initialized?: Promise<void>;
+  constructor(private readonly db: D1Database) {}
+  private async initialize(): Promise<void> {
+    this.initialized ??= this.db.batch([
+      this.db.prepare(`CREATE TABLE IF NOT EXISTS crm_retention_policies (
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, data_class TEXT NOT NULL, jurisdiction TEXT NOT NULL,
+        retention_days INTEGER NOT NULL, deletion_action TEXT NOT NULL, production_approved INTEGER NOT NULL DEFAULT 0,
+        reviewed_at INTEGER, reviewed_by TEXT, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL,
+        UNIQUE(tenant_id, data_class, id))`),
+      this.db.prepare(`CREATE TABLE IF NOT EXISTS crm_legal_holds (
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, subject_id TEXT NOT NULL, reason TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, released_at INTEGER, released_by TEXT)`),
+      this.db.prepare(`CREATE INDEX IF NOT EXISTS crm_legal_holds_subject_idx ON crm_legal_holds(tenant_id, subject_id, active)`),
+      this.db.prepare(`CREATE TABLE IF NOT EXISTS crm_deletion_requests (
+        id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, subject_id TEXT NOT NULL, requested_by TEXT NOT NULL,
+        data_classes_json TEXT NOT NULL, dry_run INTEGER NOT NULL, environment TEXT NOT NULL, status TEXT NOT NULL,
+        cursor TEXT, processed INTEGER NOT NULL DEFAULT 0, erased INTEGER NOT NULL DEFAULT 0, anonymized INTEGER NOT NULL DEFAULT 0,
+        skipped INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)`),
+      this.db.prepare(`CREATE INDEX IF NOT EXISTS crm_deletion_requests_pending_idx ON crm_deletion_requests(tenant_id, status, updated_at)`),
+    ]).then(() => undefined);
+    await this.initialized;
+  }
+  async get(tenantId: string, dataClass: RetentionClass): Promise<RetentionPolicy | undefined> {
+    await this.initialize();
+    const row = await this.db.prepare(`SELECT id, data_class AS dataClass, jurisdiction, retention_days AS retentionDays, deletion_action AS deletionAction, production_approved AS productionApproved, reviewed_at AS reviewedAt, reviewed_by AS reviewedBy FROM crm_retention_policies WHERE tenant_id = ? AND data_class = ? AND active = 1 ORDER BY reviewed_at DESC LIMIT 1`).bind(tenantId, dataClass).first<Record<string, unknown>>();
+    return row ? policyRow(row) : undefined;
+  }
+  async savePolicy(tenantId: string, policy: RetentionPolicy, now = new Date()): Promise<void> {
+    await this.initialize();
+    await this.db.prepare(`INSERT INTO crm_retention_policies (id, tenant_id, data_class, jurisdiction, retention_days, deletion_action, production_approved, reviewed_at, reviewed_by, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
+      .bind(policy.id, tenantId, policy.dataClass, policy.jurisdiction, policy.retentionDays, policy.deletionAction, policy.productionApproved ? 1 : 0, policy.reviewedAt?.getTime() ?? null, policy.reviewedBy ?? null, now.getTime()).run();
+  }
+  async activeFor(tenantId: string, subjectId: string): Promise<readonly LegalHold[]> {
+    await this.initialize(); const rows = await this.db.prepare(`SELECT id, tenant_id AS tenantId, subject_id AS subjectId, reason, active, created_at AS createdAt FROM crm_legal_holds WHERE tenant_id = ? AND subject_id = ? AND active = 1`).bind(tenantId, subjectId).all<Record<string, unknown>>();
+    return rows.results.map((row) => ({ id: String(row.id), tenantId: String(row.tenantId), subjectId: String(row.subjectId), reason: String(row.reason), active: Boolean(row.active), createdAt: new Date(Number(row.createdAt)) }));
+  }
+  async placeHold(hold: LegalHold): Promise<void> { await this.initialize(); await this.db.prepare(`INSERT INTO crm_legal_holds (id, tenant_id, subject_id, reason, active, created_at) VALUES (?, ?, ?, ?, ?, ?)`).bind(hold.id, hold.tenantId, hold.subjectId, hold.reason, hold.active ? 1 : 0, hold.createdAt.getTime()).run(); }
+  async releaseHold(tenantId: string, holdId: string, releasedBy: string, now = new Date()): Promise<boolean> { await this.initialize(); const result = await this.db.prepare(`UPDATE crm_legal_holds SET active = 0, released_at = ?, released_by = ? WHERE id = ? AND tenant_id = ? AND active = 1`).bind(now.getTime(), releasedBy, holdId, tenantId).run(); return result.meta.changes === 1; }
+  async createDeletionRequest(request: DeletionRequest, now = new Date()): Promise<void> { await this.initialize(); await this.db.prepare(`INSERT INTO crm_deletion_requests (id, tenant_id, subject_id, requested_by, data_classes_json, dry_run, environment, status, cursor, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'requested', ?, ?, ?)`)
+    .bind(request.id, request.tenantId, request.target.subjectId, request.requestedBy, JSON.stringify(request.target.dataClasses), request.dryRun ? 1 : 0, request.environment ?? "production", request.cursor ?? null, now.getTime(), now.getTime()).run(); }
+  async recordProgress(progress: DeletionProgress, tenantId: string, now = new Date()): Promise<void> { await this.initialize(); await this.db.prepare(`UPDATE crm_deletion_requests SET status = ?, cursor = ?, processed = ?, erased = ?, anonymized = ?, skipped = ?, updated_at = ? WHERE id = ? AND tenant_id = ?`).bind(progress.status, progress.cursor ?? null, progress.processed, progress.erased, progress.anonymized, progress.skipped, now.getTime(), progress.requestId, tenantId).run(); }
+}
+function policyRow(row: Record<string, unknown>): RetentionPolicy { return { id: String(row.id), dataClass: row.dataClass as RetentionClass, jurisdiction: String(row.jurisdiction), retentionDays: Number(row.retentionDays), deletionAction: row.deletionAction as DeletionAction, productionApproved: Boolean(row.productionApproved), ...(row.reviewedAt ? { reviewedAt: new Date(Number(row.reviewedAt)) } : {}), ...(row.reviewedBy ? { reviewedBy: String(row.reviewedBy) } : {}) }; }

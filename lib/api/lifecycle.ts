@@ -36,6 +36,18 @@ export const callAttemptSchema = z.object({
   if (value.endedAt && value.dialedAt && value.endedAt < value.dialedAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endedAt"], message: "End time cannot precede dial time" });
 });
 
+export const callEventSchema = z.object({
+  provider: z.string().trim().min(1).max(80).optional(),
+  externalId: id.optional(),
+  disposition: z.enum(["pending", "answered", "no_answer", "busy", "switched_off", "out_of_network", "rejected", "invalid_number", "wrong_number", "unavailable", "repeatedly_unreachable"]),
+  dialedAt: dueDate.optional(),
+  connectedAt: dueDate.optional(),
+  endedAt: dueDate.optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.connectedAt && value.dialedAt && value.connectedAt < value.dialedAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["connectedAt"], message: "Connection time cannot precede dial time" });
+  if (value.endedAt && value.dialedAt && value.endedAt < value.dialedAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endedAt"], message: "End time cannot precede dial time" });
+});
+
 export const callRemarkSchema = z.object({
   disposition: z.enum(["meaningful_connection", "no_answer", "busy", "switched_off", "out_of_network", "rejected", "invalid_number", "wrong_number", "unavailable", "repeatedly_unreachable", "not_interested"]),
   patientStatement: z.string().trim().min(2).max(4000).optional(),

@@ -17,7 +17,12 @@ export async function handleAppointmentRoutes(request: Request, requestContext: 
   const path = new URL(request.url).pathname;
   if (path === "/api/v1/appointments") { if (request.method !== "POST") return methodNotAllowed(requestContext.requestId, ["POST"]); return response(requestContext, await dependencies.appointments.book(context(requestContext), parse(createSchema as z.ZodTypeAny, await readJsonBody(request)) as z.infer<typeof createSchema>), 201); }
   const match = path.match(route); if (!match) return undefined; const [, appointmentId, action] = match;
-  if (!action) return undefined;
+  if (!action) {
+    if (request.method !== "GET") return methodNotAllowed(requestContext.requestId, ["GET"]);
+    const appointment = await dependencies.appointments.get(context(requestContext).tenantId, appointmentId);
+    if (!appointment) throw new ApiError("NOT_FOUND", 404, "Appointment is unavailable");
+    return response(requestContext, appointment);
+  }
   if (action === "reschedule") { if (request.method !== "POST") return methodNotAllowed(requestContext.requestId, ["POST"]); const body = parse(rescheduleSchema as z.ZodTypeAny, await readJsonBody(request)) as z.infer<typeof rescheduleSchema>; return response(requestContext, await dependencies.appointments.reschedule(context(requestContext), appointmentId, body.expectedVersion, body)); }
   if (request.method !== "POST") return methodNotAllowed(requestContext.requestId, ["POST"]);
   const body = parse(transitionSchema, await readJsonBody(request));

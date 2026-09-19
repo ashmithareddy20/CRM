@@ -25,6 +25,8 @@ export interface Env {
   BLIND_INDEX_KEY?: string;
   /** base64url HMAC key for signed sessions and audit anchors. */
   AUDIT_ANCHOR_KEY?: string;
+  SESSION_SIGNING_KEY?: string;
+  TEST_IDENTITY_SECRET?: string;
   /** Synthetic-only or reviewed production ingestion gate. */
   PATIENT_DATA_INGESTION?: string;
   /** Private JSON integration registry. Entries must be simulated unless a separately reviewed adapter is installed. */

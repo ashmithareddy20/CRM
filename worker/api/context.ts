@@ -32,7 +32,8 @@ export interface ContextDependencies {
  * and available through `authenticateRequest`; request bodies never establish an actor.
  */
 export function createRequestContext(request: Request, env: Env, dependencies: ContextDependencies = {}): RequestContext {
-  const requestId = request.headers.get("X-Request-Id")?.trim().slice(0, 128) || dependencies.requestId?.() || crypto.randomUUID();
+  const suppliedRequestId = request.headers.get("X-Request-Id")?.trim();
+  const requestId = suppliedRequestId && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(suppliedRequestId) ? suppliedRequestId : dependencies.requestId?.() || crypto.randomUUID();
   const now = dependencies.now?.() ?? new Date();
   const actor = localTestActor(request, env);
 

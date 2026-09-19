@@ -11,7 +11,7 @@ const insuranceSchema = z.object({ leadId: text, evidenceId: text, status: z.enu
 const quoteSchema = z.object({ leadId: text, amountMinor: amount, currency: code, status: z.enum(["quoted", "accepted"]).optional() }).strict();
 const discountSchema = z.object({ leadId: text, requestedMinor: amount, currency: code, reason: text }).strict();
 const approvalSchema = z.object({ approvedMinor: amount, expiresAt: z.string().datetime({ offset: true }).transform((value) => new Date(value)) }).strict();
-const revenueSchema = z.object({ leadId: text, kind: z.enum(["quoted", "booked", "recognized", "received"]), amountMinor: amount, currency: code, evidenceId: text }).strict();
+const revenueSchema = z.object({ leadId: text, treatmentId: text, kind: z.enum(["quoted", "booked", "recognized", "received"]), amountMinor: amount, currency: code, evidenceId: text }).strict();
 const reversalSchema = z.object({ evidenceId: text }).strict();
 export interface FinanceRouteDependencies { finance: FinanceService; }
 function financeContext(context: RequestContext) { if (!context.actor) throw new ApiError("AUTHENTICATION_REQUIRED", 401, "Authentication is required"); return { tenantId: context.actor.tenantId, actorMembershipId: context.actor.membershipId, roles: context.actor.roles, now: context.now }; }

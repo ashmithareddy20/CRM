@@ -3,7 +3,7 @@ import type { MessageChannel } from "../communication/service";
 export type JourneyKind = "hot" | "warm" | "cold" | "not_connected" | "appointment" | "recovery";
 export interface JourneyStepDefinition { sequence: number; dueAfterDays: number; purpose: string; channel: MessageChannel | "rich" | "call"; }
 export interface PlannedTouch { id: string; tenantId: string; leadId: string; contactId: string; journeyId: string; sequence: number; purpose: string; channel: MessageChannel | "rich" | "call"; dueAt: Date; status: "planned" | "paused" | "cancelled"; gateKey: string; }
-export interface JourneyRepository { addTouches(touches: readonly PlannedTouch[]): Promise<void>; pauseContact(tenantId: string, contactId: string, reason: string): Promise<void>; }
+export interface JourneyRepository { addTouches(touches: readonly PlannedTouch[]): Promise<void>; pauseContact(tenantId: string, contactId: string, reason: string): Promise<void>; cancelContact(tenantId: string, contactId: string, reason: string): Promise<void>; }
 const id = () => crypto.randomUUID();
 /** Calls are planned independently; messages remain subject to the dispatch service's 48h accepted-send gate. */
 export const JOURNEY_SCHEDULES: Readonly<Record<Exclude<JourneyKind, "appointment" | "recovery">, readonly JourneyStepDefinition[]>> = {
@@ -40,5 +40,7 @@ export class JourneyService {
   async pauseForReply(tenantId: string, contactId: string) { await this.repository.pauseContact(tenantId, contactId, "reply"); }
   async pauseForBooking(tenantId: string, contactId: string) { await this.repository.pauseContact(tenantId, contactId, "booking"); }
   async pauseForConversion(tenantId: string, contactId: string) { await this.repository.pauseContact(tenantId, contactId, "conversion"); }
+  /** Pause retains resumable touches; terminal cancellation is a separate irreversible command. */
+  async cancelForTerminalOutcome(tenantId: string, contactId: string) { await this.repository.cancelContact(tenantId, contactId, "terminal_outcome"); }
 }
-export class MemoryJourneyRepository implements JourneyRepository { readonly touches: PlannedTouch[] = []; readonly pauses: string[] = []; async addTouches(touches: readonly PlannedTouch[]) { this.touches.push(...touches); } async pauseContact(tenantId: string, contactId: string, reason: string) { this.pauses.push(`${tenantId}:${contactId}:${reason}`); for (const touch of this.touches) if (touch.tenantId === tenantId && touch.contactId === contactId && touch.status === "planned") touch.status = "paused"; } }
+export class MemoryJourneyRepository implements JourneyRepository { readonly touches: PlannedTouch[] = []; readonly pauses: string[] = []; async addTouches(touches: readonly PlannedTouch[]) { this.touches.push(...touches); } async pauseContact(tenantId: string, contactId: string, reason: string) { this.pauses.push(`${tenantId}:${contactId}:${reason}`); for (const touch of this.touches) if (touch.tenantId === tenantId && touch.contactId === contactId && touch.status === "planned") touch.status = "paused"; } async cancelContact(tenantId: string, contactId: string, reason: string) { this.pauses.push(`${tenantId}:${contactId}:${reason}`); for (const touch of this.touches) if (touch.tenantId === tenantId && touch.contactId === contactId && touch.status !== "cancelled") touch.status = "cancelled"; } }

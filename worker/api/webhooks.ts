@@ -24,7 +24,8 @@ export interface WebhookHandlerOptions {
   readonly maxBodyBytes?: number;
   readonly replayWindowMs?: number;
   /** Encrypts raw provider payloads before durable storage. Required outside tests. */
-  readonly sealPayload: (rawPayload: string) => Promise<string>;
+  /** Inbox ID is provided so ciphertext AAD is bound to the persisted record. */
+  readonly sealPayload: (rawPayload: string, inboxId: string) => Promise<string>;
   readonly enqueue?: (reference: { kind: "inbox"; id: string }) => Promise<void>;
 }
 
@@ -62,7 +63,7 @@ export async function handleProviderWebhook(request: Request, env: Env, options:
     const event = configured.adapter.parseWebhook(payload);
     if (Number.isNaN(event.occurredAt.getTime()) || !event.eventId || event.eventId.length > 200) throw new ApiError("INVALID_REQUEST", 422, "Webhook event is invalid");
     const inboxId = crypto.randomUUID();
-    const sealedPayload = await options.sealPayload(raw);
+    const sealedPayload = await options.sealPayload(raw, inboxId);
     const inserted = await env.DB.prepare(`INSERT OR IGNORE INTO crm_webhook_inbox
       (id, tenant_id, provider, integration_id, provider_event_id, payload_ciphertext, received_at, status, created_at, version)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'received', ?, 1)`).bind(inboxId, configured.registration.tenantId, provider, integrationId, event.eventId, sealedPayload, now.getTime(), now.getTime()).run();

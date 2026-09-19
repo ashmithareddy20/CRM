@@ -20,6 +20,10 @@ export class TaskService {
   async create(context: TaskContext, rawInput: z.input<typeof taskCreateSchema>) {
     if (!context.roles.some((role) => ["agent", "manager", "operations", "scheduler", "clinician", "financial_counselor"].includes(role))) throw new ApiError("FORBIDDEN", 403, "You are not permitted to create tasks");
     const input = taskCreateSchema.parse(rawInput); const taskId = id(); const now = context.now.getTime();
+    if (input.leadId) {
+      const pending = await this.db.prepare("SELECT id FROM crm_call_attempts WHERE tenant_id = ? AND lead_id = ? AND disposition = 'remark_pending' LIMIT 1").bind(context.tenantId, input.leadId).first();
+      if (pending) throw new ApiError("CONFLICT", 409, "Complete pending mandatory call remarks before creating new lead work");
+    }
     const task = { id: taskId, tenantId: context.tenantId, leadId: input.leadId ?? null, assigneeMembershipId: input.assigneeMembershipId ?? context.actorMembershipId, title: input.title, dueAt: input.dueAt.getTime(), priority: input.priority, createdAt: now, createdByMembershipId: context.actorMembershipId };
     const writes: D1PreparedStatement[] = [this.db.prepare("INSERT INTO crm_tasks (id, tenant_id, lead_id, assignee_membership_id, title, due_at, status, priority, created_at, created_by_membership_id, version) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, 1)").bind(task.id, task.tenantId, task.leadId, task.assigneeMembershipId, task.title, task.dueAt, task.priority, task.createdAt, task.createdByMembershipId)];
     if (input.slaPolicyKey) writes.push(this.db.prepare("INSERT INTO crm_sla_clocks (id, tenant_id, lead_id, task_id, policy_key, due_at, status, created_at, created_by_membership_id, version) VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?, 1)").bind(id(), context.tenantId, task.leadId, taskId, input.slaPolicyKey, task.dueAt, now, context.actorMembershipId));

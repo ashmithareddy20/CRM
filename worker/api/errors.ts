@@ -6,6 +6,8 @@ export type ApiErrorCode =
   | "VALIDATION_FAILED"
   | "INVALID_REQUEST"
   | "CONFLICT"
+  | "IDEMPOTENCY_CONFLICT"
+  | "CSRF_FAILED"
   | "PRECONDITION_FAILED"
   | "RATE_LIMITED"
   | "SERVICE_UNAVAILABLE"
@@ -36,7 +38,7 @@ export function errorResponse(error: unknown, requestId: string): Response {
       requestId,
     },
     message: apiError.message,
-  }, { status: apiError.status, headers: { "X-Request-Id": requestId } });
+  }, { status: apiError.status, headers: { "X-Request-Id": requestId, "Cache-Control": "no-store, private", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" } });
 }
 
 export function methodNotAllowed(requestId: string, allowed: readonly string[]): Response {
@@ -44,5 +46,5 @@ export function methodNotAllowed(requestId: string, allowed: readonly string[]):
     success: false,
     error: { code: "METHOD_NOT_ALLOWED", message: "Method not allowed", requestId },
     message: "Method not allowed",
-  }, { status: 405, headers: { Allow: allowed.join(", "), "X-Request-Id": requestId } });
+  }, { status: 405, headers: { Allow: allowed.join(", "), "X-Request-Id": requestId, "Cache-Control": "no-store, private", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" } });
 }

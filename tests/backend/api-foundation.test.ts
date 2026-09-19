@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { routeApiRequest } from "../../worker/api/router";
 import type { Env } from "../../worker/env";
 
-const env = { ALLOW_TEST_IDENTITY: "true", DEPLOYMENT_ENV: "test", DEPLOYMENT_VERSION: "test" } as Env;
-const actor = { "X-Test-Identity": "test-user:tenant-test:member-test" };
+const env = { ALLOW_TEST_IDENTITY: "true", TEST_IDENTITY_SECRET: "test-only-secret", DEPLOYMENT_ENV: "test", DEPLOYMENT_VERSION: "test" } as Env;
+const actor = { "X-Test-Identity": "test-user:tenant-test:member-test", "X-Test-Identity-Secret": "test-only-secret" };
 
 async function request(path: string, init: RequestInit = {}) {
   return routeApiRequest(new Request(`https://crm.example${path}`, init), env, { requestId: () => "req-test" });

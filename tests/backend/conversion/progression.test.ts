@@ -30,3 +30,25 @@ describe("clinical authorization boundary", () => {
       .rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
   });
 });
+
+import { handleAppointmentRoutes } from "../../../worker/api/appointments";
+import { isLegalAppointmentTransition } from "../../../worker/domain/appointments/service";
+
+describe("appointment and API regression boundaries", () => {
+  it("only permits terminal clinical progression after arrival", () => {
+    expect(isLegalAppointmentTransition("confirmed", "arrived")).toBe(true);
+    expect(isLegalAppointmentTransition("arrived", "consultation_completed")).toBe(true);
+    expect(isLegalAppointmentTransition("confirmed", "consultation_completed")).toBe(false);
+    expect(isLegalAppointmentTransition("cancelled", "confirmed")).toBe(false);
+  });
+
+  it("returns an authenticated tenant-scoped appointment on GET", async () => {
+    const record = { id: "appointment-1", seriesId: "series-1", leadId: "lead-1", doctorId: "doctor-1", branchId: "branch-1", startsAt: now, endsAt: now, status: "confirmed" as const, version: 3 };
+    const response = await handleAppointmentRoutes(new Request("https://example.test/api/v1/appointments/appointment-1"), {
+      request: new Request("https://example.test"), env: {} as never, requestId: "request-1", now,
+      actor: { subject: "user", tenantId: "tenant-1", membershipId: "member-1", roles: ["scheduler"], authentication: "test" },
+    }, { appointments: { get: async (tenantId: string, id: string) => tenantId === "tenant-1" && id === "appointment-1" ? record : undefined } as never });
+    expect(response?.status).toBe(200);
+    expect(await response?.json()).toMatchObject({ data: { id: "appointment-1", version: 3 } });
+  });
+});

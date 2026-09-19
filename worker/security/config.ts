@@ -5,11 +5,17 @@ export interface SecurityConfigSource {
   OIDC_AUDIENCE?: string;
   OIDC_ALLOWED_ALGORITHMS?: string;
   OIDC_JWKS_URL?: string;
+  OIDC_AUTHORIZATION_ENDPOINT?: string;
+  OIDC_TOKEN_ENDPOINT?: string;
+  OIDC_CLIENT_ID?: string;
+  OIDC_REDIRECT_URI?: string;
   CORS_ALLOWED_ORIGINS?: string;
   FIELD_ENCRYPTION_KEYS?: string;
   FIELD_ENCRYPTION_ACTIVE_VERSION?: string;
   BLIND_INDEX_KEY?: string;
   AUDIT_ANCHOR_KEY?: string;
+  SESSION_SIGNING_KEY?: string;
+  TEST_IDENTITY_SECRET?: string;
 }
 
 export interface OidcConfig { issuer: string; audience: string; algorithms: readonly JwtAlgorithm[]; jwksUrl?: string }
@@ -25,7 +31,9 @@ export function oidcConfig(env: SecurityConfigSource): OidcConfig {
   if (!issuer || !/^https:\/\//u.test(issuer) || !audience || algorithms.length === 0 || !algorithms.every((algorithm): algorithm is JwtAlgorithm => supportedAlgorithms.has(algorithm as JwtAlgorithm))) {
     throw new Error("OIDC issuer, audience, and supported allowed algorithms must be configured");
   }
-  return { issuer, audience, algorithms: algorithms as JwtAlgorithm[], ...(env.OIDC_JWKS_URL ? { jwksUrl: env.OIDC_JWKS_URL } : {}) };
+  const jwksUrl = env.OIDC_JWKS_URL?.trim();
+  if (jwksUrl && new URL(jwksUrl).protocol !== "https:") throw new Error("OIDC JWKS URL must use HTTPS");
+  return { issuer, audience, algorithms: algorithms as JwtAlgorithm[], ...(jwksUrl ? { jwksUrl } : {}) };
 }
 
 export function corsOrigins(env: SecurityConfigSource): readonly string[] {

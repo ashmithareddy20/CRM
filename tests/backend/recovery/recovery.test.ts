@@ -45,3 +45,33 @@ describe("targeted recovery", () => {
     }
   });
 });
+
+describe("diagnosis/recovery review regressions", () => {
+  it("supersedes the previous active diagnosis and preserves the authenticated audit actor", async () => {
+    const repository = new MemoryDiagnosisRepository(); repository.leads.set("lead-1", { id: "lead-1", contactId: "contact-1", lifecycleStage: "closed" });
+    const service = new DiagnosisService(repository);
+    const first = await service.record(context, { leadId: "lead-1", versionId: "v1", primaryReason: "financial", secondaryReason: "budget_insufficient", detailedRemark: "First evidenced diagnosis", evidenceId: "evidence-1", recoverability: "recoverable", responsibleMembershipId: "owner-1", reviewAt: new Date("2026-09-20T00:00:00.000Z") });
+    const actorTwo = { ...context, actorMembershipId: "manager-2", now: new Date("2026-09-19T01:00:00.000Z") };
+    const second = await service.record(actorTwo, { leadId: "lead-1", versionId: "v2", primaryReason: "interest", secondaryReason: "wants_to_wait", detailedRemark: "Patient asked for more time", evidenceId: "evidence-2", recoverability: "long_term_nurture", responsibleMembershipId: "owner-2", reviewAt: new Date("2026-09-21T00:00:00.000Z") });
+    expect(first.state).toBe("recorded"); expect(second).toMatchObject({ state: "recorded" });
+    expect(repository.diagnoses).toHaveLength(2); expect(repository.diagnoses.map((item) => item.status)).toEqual(["superseded", "active"]);
+    expect(repository.diagnoses[1]?.createdByMembershipId).toBe("manager-2"); expect(repository.findings[1]?.createdByMembershipId).toBe("manager-2");
+  });
+
+  it("turns the repository's final active-enrollment conflict into 409 and retains scheduling snapshots", async () => {
+    class RacingRepository extends MemoryRecoveryRepository { override async addEnrollment() { return false; } }
+    const racing = new RacingRepository(); const service = new RecoveryService(racing);
+    const campaign = await service.createCampaign(context, { name: "Recovery", kind: "reason_based", status: "active" });
+    racing.diagnoses.set("d", { id: "d", leadId: "lead", primaryReason: "interest", secondaryReason: "wants_to_wait", recoverability: "recoverable", evidenceId: "e", reviewAt: new Date("2026-09-20T00:00:00.000Z") });
+    racing.leads.set("lead", { leadId: "lead", contactId: "contact", lifecycleStage: "closed", contactStatus: "active", optedOut: false, doNotContact: false, invalid: false, rejected: false, alreadyTreated: false, clinicallyIneligible: false });
+    await expect(service.enroll(context, { campaignId: campaign.id, diagnosisId: "d" })).rejects.toMatchObject({ status: 409 });
+
+    const repository = new MemoryRecoveryRepository(); const scheduled = new RecoveryService(repository); const active = await scheduled.createCampaign(context, { name: "Scheduled", kind: "reason_based", status: "active" });
+    repository.diagnoses.set("d", { id: "d", leadId: "lead", primaryReason: "interest", secondaryReason: "wants_to_wait", recoverability: "recoverable", evidenceId: "e", reviewAt: new Date("2026-09-20T00:00:00.000Z") });
+    repository.leads.set("lead", { leadId: "lead", contactId: "contact", lifecycleStage: "closed", contactStatus: "active", optedOut: false, doNotContact: false, invalid: false, rejected: false, alreadyTreated: false, clinicallyIneligible: false });
+    const enrollment = await scheduled.enroll(context, { campaignId: active.id, diagnosisId: "d", delayDays: 30 });
+    expect(enrollment).toMatchObject({ reasonSnapshot: "interest:wants_to_wait", eligibleAt: now });
+    await scheduled.scheduleDue("tenant-1", enrollment.reactivationAt);
+    expect(repository.touches).toEqual(expect.arrayContaining([expect.objectContaining({ enrollmentId: enrollment.id, purpose: "recovery:interest", requestedChannel: "whatsapp" }), expect.objectContaining({ enrollmentId: enrollment.id, purpose: "recovery:interest", requestedChannel: "rich" })]));
+  });
+});

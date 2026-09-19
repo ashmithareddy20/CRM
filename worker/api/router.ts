@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import type { Env } from "../env";
 import { createRequestContext, type ContextDependencies, requireActor, type RequestContext } from "./context";
 import { ApiError, errorResponse, methodNotAllowed } from "./errors";
@@ -11,6 +11,12 @@ import { corsHeaders, corsPreflight } from "../security/cors";
 import { hasCapability, type Capability } from "../security/permissions";
 import { encryptField, blindIndex } from "../security/field-crypto";
 import { routeAuthRequest } from "./auth";
+import { handleRetentionRoutes } from "./retention";
+import { handleEvidenceRoutes } from "./evidence";
+import { D1RetentionRegistry } from "../security/retention";
+import { requireIngestionAllowed } from "../security/ingestion";
+import { D1EvidenceMetadataRegistry, requireEvidenceOwnership } from "../security/evidence";
+import { MemoryRateLimitStore, limitUserRoute, limitWebhook } from "../observability/rate-limit";
 import { routeAccessRequest } from "./access";
 import { handleProviderWebhook } from "./webhooks";
 import { handleLeadRoutes } from "./leads";
@@ -53,6 +59,7 @@ import { campaigns, contentAssets, consentEvents, contactDispatchGates, messageA
 const fixtureCreateSchema = z.object({ title: z.string().trim().min(1).max(120) }).strict();
 const fixtureRows = ["alpha", "bravo", "charlie", "delta", "echo"].map((title, index) => ({ id: `fixture-${index + 1}`, title, version: 1 }));
 const apiPrefix = "/api/v1";
+const rateLimits = new MemoryRateLimitStore();
 
 function success<T>(data: T, requestId: string, meta?: Record<string, unknown>, status = 200, request?: Request, env?: Env): Response {
   const headers = new Headers({ "X-Request-Id": requestId, "Cache-Control": "no-store" });
@@ -63,16 +70,23 @@ function normalizedRequestId(value: string | null | undefined, fallback: () => s
   const candidate = value?.trim();
   return candidate && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(candidate) ? candidate : fallback();
 }
+/** Explicit deny-by-default API policy. Service-level ownership checks remain the second line of defence. */
 function routeCapability(path: string, method: string): Capability | undefined {
-  if (path === "/api/v1/ready" || path === "/api/v1/openapi.json") return "audit:read";
-  if (path.startsWith("/api/v1/reports/") || path.startsWith("/api/v1/work-queues/")) return "report:read:aggregate";
+  const read = method === "GET" || method === "HEAD";
+  if (["/api/v1/health", "/api/v1/auth/login", "/api/v1/auth/callback"].includes(path)) return undefined;
+  if (["/api/v1/ready", "/api/v1/openapi.json"].includes(path) || path.startsWith("/api/v1/evidence/")) return "audit:read";
   if (path === "/api/v1/exports") return "export:run";
-  if (path.startsWith("/api/v1/financial") || path.startsWith("/api/v1/insurance") || path.startsWith("/api/v1/quotes") || path.startsWith("/api/v1/revenue") || path.startsWith("/api/v1/discount")) return method === "GET" ? "finance:read" : "finance:write";
-  if (path.startsWith("/api/v1/appointments")) return "appointment:manage";
-  if (path.startsWith("/api/v1/consultations") || path.startsWith("/api/v1/clinical") || path.startsWith("/api/v1/procedure") || path.startsWith("/api/v1/admissions") || path.startsWith("/api/v1/treatments")) return "clinical:write:assigned";
-  if (path.startsWith("/api/v1/admin") || path.startsWith("/api/v1/templates") || path.startsWith("/api/v1/assets") || path.startsWith("/api/v1/recovery")) return "configuration:manage";
-  if (path.startsWith("/api/v1/sources") || path.startsWith("/api/v1/campaigns")) return method === "GET" ? "lead:read:assigned" : "configuration:manage";
-  if (path.startsWith("/api/v1/consents") || path.startsWith("/api/v1/suppressions") || path.startsWith("/api/v1/messages") || path.startsWith("/api/v1/calls") || path.startsWith("/api/v1/tasks") || path.startsWith("/api/v1/leads") || path.startsWith("/api/v1/lead-imports") || path.startsWith("/api/v1/qualifications")) return method === "GET" ? "lead:read:assigned" : "lead:write:assigned";
+  if (path.startsWith("/api/v1/reports/") || path.startsWith("/api/v1/work-queues/")) return "report:read:aggregate";
+  if (path.startsWith("/api/v1/discount-requests/")) return read ? "finance:read" : "discount:approve";
+  if (/^\/api\/v1\/(financial-counseling|insurance-cases|quotes|revenue-entries)(?:\/|$)/.test(path)) return read ? "finance:read" : "finance:write";
+  if (/^\/api\/v1\/(appointments|consultations|clinical-decisions|procedure-bookings|admissions|treatments)(?:\/|$)/.test(path)) return read ? "care:read:assigned" : (path.startsWith("/api/v1/appointments") ? "appointment:manage" : "clinical:write:assigned");
+  if (/^\/api\/v1\/(recovery-campaigns|enrollments)(?:\/|$)/.test(path)) return read ? "lead:read:assigned" : "configuration:manage";
+  if (/^\/api\/v1\/(diagnoses|lifecycle)(?:\/|$)/.test(path)) return read ? "lead:read:assigned" : "lead:write:assigned";
+  if (/^\/api\/v1\/(calls|tasks)(?:\/|$)/.test(path)) return read ? "lead:read:assigned" : "lead:write:assigned";
+  if (/^\/api\/v1\/(consents|suppressions|messages)(?:\/|$)/.test(path)) return read ? "lead:read:assigned" : "lead:write:assigned";
+  if (/^\/api\/v1\/(admin|retention-policies|legal-holds|deletion-requests|templates|assets)(?:\/|$)/.test(path)) return "configuration:manage";
+  if (/^\/api\/v1\/(sources|campaigns)(?:\/|$)/.test(path)) return read ? "lead:read:assigned" : "configuration:manage";
+  if (/^\/api\/v1\/(leads|lead-imports|qualifications)(?:\/|$)/.test(path)) return read ? "lead:read:assigned" : "lead:write:assigned";
   return undefined;
 }
 function isWrite(method: string) { return !["GET", "HEAD", "OPTIONS"].includes(method); }
@@ -146,41 +160,45 @@ export function dispatchRepository(context: RequestContext): DispatchRepository 
     async reserveGate(input) { const current = await this.getGate(input.tenantId, input.contactId); if (current && input.expectedVersion !== current.version) return undefined; if (!current) { try { await context.db.insert(contactDispatchGates).values({ id: crypto.randomUUID(), tenantId: input.tenantId, contactId: input.contactId, activeTouchId: input.touchId, reservedUntil: input.reservedUntil, createdAt: input.now }); } catch { return undefined; } return this.getGate(input.tenantId, input.contactId); } const result = await context.db.update(contactDispatchGates).set({ activeTouchId: input.touchId, reservedUntil: input.reservedUntil, version: current.version + 1, updatedAt: input.now }).where(and(eq(contactDispatchGates.tenantId, input.tenantId), eq(contactDispatchGates.contactId, input.contactId), eq(contactDispatchGates.version, current.version))).run(); return result.meta.changes ? this.getGate(input.tenantId, input.contactId) : undefined; },
     async releaseGate(tenantId, contactId, touchId, now, acceptedAt) { await context.db.update(contactDispatchGates).set({ activeTouchId: null, reservedUntil: null, ...(acceptedAt ? { lastAcceptedAt: acceptedAt } : {}), updatedAt: now }).where(and(eq(contactDispatchGates.tenantId, tenantId), eq(contactDispatchGates.contactId, contactId), eq(contactDispatchGates.activeTouchId, touchId))); },
     async latestAccepted(tenantId, contactId) { const row = await context.db.select().from(messageAttempts).where(and(eq(messageAttempts.tenantId, tenantId), eq(messageAttempts.contactId, contactId), eq(messageAttempts.status, "accepted"))).orderBy(desc(messageAttempts.acceptedAt)).get(); return row ? toAttempt(row) : undefined; },
-    async hasContentHash(tenantId, contactId, hash) { return Boolean(await context.db.select({ id: messageAttempts.id }).from(messageAttempts).where(and(eq(messageAttempts.tenantId, tenantId), eq(messageAttempts.contactId, contactId), eq(messageAttempts.acceptedContentHash, hash), eq(messageAttempts.status, "accepted"))).get()); },
+    async hasContentHash(tenantId, contactId, hash, since) { return Boolean(await context.db.select({ id: messageAttempts.id }).from(messageAttempts).where(and(eq(messageAttempts.tenantId, tenantId), eq(messageAttempts.contactId, contactId), eq(messageAttempts.acceptedContentHash, hash), eq(messageAttempts.status, "accepted"), gte(messageAttempts.acceptedAt, since))).get()); },
     async acceptedHistory(tenantId, contactId) { return context.db.select().from(messageAttempts).where(and(eq(messageAttempts.tenantId, tenantId), eq(messageAttempts.contactId, contactId), eq(messageAttempts.status, "accepted"))).all().then((rows) => rows.map(toAttempt)); },
-    async createAttempt(attempt) { await context.db.insert(messageAttempts).values({ id: attempt.id, tenantId: attempt.tenantId, touchId: attempt.touchId ?? null, contactId: attempt.contactId, channel: attempt.channel, purpose: attempt.purpose, templateVersionId: attempt.templateVersionId ?? null, acceptedContentHash: attempt.acceptedContentHash ?? null, provider: attempt.provider ?? null, providerMessageId: attempt.providerMessageId ?? null, status: attempt.status, acceptedAt: attempt.acceptedAt ?? null, createdAt: attempt.createdAt }); },
+    async createAttempt(attempt) { await context.db.insert(messageAttempts).values({ id: attempt.id, tenantId: attempt.tenantId, touchId: attempt.touchId ?? null, contactId: attempt.contactId, channel: attempt.channel, purpose: attempt.purpose, templateVersionId: attempt.templateVersionId ?? null, requestedChannel: attempt.requestedChannel, acceptedContentHash: attempt.acceptedContentHash ?? null, provider: attempt.provider ?? null, providerMessageId: attempt.providerMessageId ?? null, status: attempt.status, acceptedAt: attempt.acceptedAt ?? null, createdAt: attempt.createdAt }); },
     async getAttempt(tenantId, attemptId) { const row = await context.db.select().from(messageAttempts).where(and(eq(messageAttempts.tenantId, tenantId), eq(messageAttempts.id, attemptId))).get(); return row ? toAttempt(row) : undefined; },
     async updateAttempt(attempt) { await context.db.update(messageAttempts).set({ providerMessageId: attempt.providerMessageId ?? null, status: attempt.status, acceptedAt: attempt.acceptedAt ?? null }).where(and(eq(messageAttempts.tenantId, attempt.tenantId), eq(messageAttempts.id, attempt.id))); },
     async appendEvent(event) { try { await context.db.insert(messageEvents).values({ id: event.id, tenantId: event.tenantId, messageAttemptId: event.attemptId, providerEventId: event.providerEventId, type: event.type, occurredAt: event.occurredAt, createdAt: event.occurredAt }); return true; } catch { return false; } },
-    async pauseRoutineTouches(tenantId, contactId) { await context.env.DB!.prepare("UPDATE crm_scheduled_touches SET status = 'cancelled', updated_at = ? WHERE tenant_id = ? AND contact_id = ? AND status = 'planned'").bind(context.now.getTime(), tenantId, contactId).run(); },
+    async pauseRoutineTouches(tenantId, contactId) { await context.env.DB!.prepare("UPDATE crm_scheduled_touches SET status = 'paused', updated_at = ? WHERE tenant_id = ? AND contact_id = ? AND status = 'planned'").bind(context.now.getTime(), tenantId, contactId).run(); },
   };
 }
 function toAttempt(row: typeof messageAttempts.$inferSelect) { return { id: row.id, tenantId: row.tenantId, ...(row.touchId ? { touchId: row.touchId } : {}), contactId: row.contactId, channel: row.channel as "whatsapp" | "rcs" | "mms", requestedChannel: row.channel as "whatsapp" | "rcs" | "mms", purpose: row.purpose, ...(row.templateVersionId ? { templateVersionId: row.templateVersionId } : {}), ...(row.acceptedContentHash ? { acceptedContentHash: row.acceptedContentHash } : {}), ...(row.provider ? { provider: row.provider } : {}), ...(row.providerMessageId ? { providerMessageId: row.providerMessageId } : {}), status: row.status as "planned" | "accepted" | "sent" | "delivered" | "failed" | "read" | "replied" | "clicked" | "delivery_unknown" | "cancelled" | "blocked", ...(row.acceptedAt ? { acceptedAt: row.acceptedAt } : {}), createdAt: row.createdAt }; }
 
+async function commandHash(request: Request): Promise<string> {
+  const body = await request.clone().text();
+  const raw = `${request.method}\n${new URL(request.url).pathname}\n${body}`;
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw)))].map((part) => part.toString(16).padStart(2, "0")).join("");
+}
+type StoredCommandResponse = { status: number; headers: Record<string, string>; body: string };
 async function enforceCommandIdempotency(context: RequestContext, operation: string): Promise<Response | undefined> {
-  if (!isWrite(context.request.method)) return undefined;
-  const key = parse(idempotencyKeySchema, context.request.headers.get("Idempotency-Key") ?? "");
-  requireDatabase(context); const actor = requireActor(context); const now = context.now.getTime();
-  const existing = await context.env.DB!.prepare("SELECT request_hash AS requestHash, result_ciphertext AS result FROM crm_idempotency_commands WHERE tenant_id = ? AND actor_key = ? AND operation = ? AND idempotency_key = ? AND expires_at > ?")
-    .bind(actor.tenantId, actor.membershipId, operation, key, now).first<{ requestHash: string; result: string | null }>();
-  const requestHash = `${context.request.method}:${new URL(context.request.url).pathname}`;
-  if (existing) {
-    if (existing.requestHash !== requestHash) throw new ApiError("IDEMPOTENCY_CONFLICT", 409, "Idempotency key was previously used for a different operation");
-    return success({ operationId: existing.result ?? `command:${key}`, replayed: true }, context.requestId, undefined, 200, context.request, context.env);
+  const key = parse(idempotencyKeySchema, context.request.headers.get("Idempotency-Key") ?? ""); requireDatabase(context);
+  const actor = requireActor(context); const now = context.now.getTime(); const requestHash = await commandHash(context.request);
+  const load = () => context.env.DB!.prepare("SELECT request_hash AS requestHash, result_ciphertext AS result, status FROM crm_idempotency_commands WHERE tenant_id = ? AND actor_key = ? AND operation = ? AND idempotency_key = ? AND expires_at > ?").bind(actor.tenantId, actor.membershipId, operation, key, now).first<{ requestHash: string; result: string | null; status: string }>();
+  let existing = await load();
+  if (!existing) {
+    const inserted = await context.env.DB!.prepare("INSERT OR IGNORE INTO crm_idempotency_commands (id, tenant_id, actor_key, operation, idempotency_key, request_hash, status, expires_at, created_at, version) VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?, 1)").bind(crypto.randomUUID(), actor.tenantId, actor.membershipId, operation, key, requestHash, now + 86_400_000, now).run();
+    if (inserted.meta.changes) return undefined;
+    existing = await load();
   }
-  try {
-    await context.env.DB!.prepare("INSERT INTO crm_idempotency_commands (id, tenant_id, actor_key, operation, idempotency_key, request_hash, status, expires_at, created_at, version) VALUES (?, ?, ?, ?, ?, ?, 'accepted', ?, ?, 1)")
-      .bind(crypto.randomUUID(), actor.tenantId, actor.membershipId, operation, key, requestHash, now + 86_400_000, now).run();
-  } catch {
-    return enforceCommandIdempotency(context, operation);
-  }
-  return undefined;
+  if (!existing) throw new ApiError("CONFLICT", 409, "Command is being processed");
+  if (existing.requestHash !== requestHash) throw new ApiError("IDEMPOTENCY_CONFLICT", 409, "Idempotency key was previously used for a different request");
+  if (existing.status === "completed" && existing.result) { const stored = JSON.parse(existing.result) as StoredCommandResponse; return new Response(stored.body, { status: stored.status, headers: stored.headers }); }
+  if (existing.status === "failed") { await context.env.DB!.prepare("UPDATE crm_idempotency_commands SET status = 'processing', result_ciphertext = NULL, updated_at = ? WHERE tenant_id = ? AND actor_key = ? AND operation = ? AND idempotency_key = ? AND request_hash = ?").bind(now, actor.tenantId, actor.membershipId, operation, key, requestHash).run(); return undefined; }
+  throw new ApiError("CONFLICT", 409, "Command is already in progress");
 }
 async function finalizeCommandIdempotency(context: RequestContext, operation: string, response: Response): Promise<Response> {
-  if (!isWrite(context.request.method) || !context.env.DB || !context.actor) return response;
-  const key = context.request.headers.get("Idempotency-Key"); if (!key) return response;
+  if (!context.env.DB || !context.actor) return response; const key = context.request.headers.get("Idempotency-Key"); if (!key) return response;
+  const body = await response.clone().text(); const headers = Object.fromEntries([...response.headers].filter(([name]) => ["content-type", "cache-control"].includes(name.toLowerCase())));
+  const stored: StoredCommandResponse = { status: response.status, headers, body };
   await context.env.DB.prepare("UPDATE crm_idempotency_commands SET status = ?, result_ciphertext = ?, updated_at = ? WHERE tenant_id = ? AND actor_key = ? AND operation = ? AND idempotency_key = ?")
-    .bind(response.ok ? "completed" : "failed", `status:${response.status}`, context.now.getTime(), context.actor.tenantId, context.actor.membershipId, operation, key).run();
+    .bind(response.ok ? "completed" : "failed", JSON.stringify(stored), context.now.getTime(), context.actor.tenantId, context.actor.membershipId, operation, key).run();
   return response;
 }
 function policyRepository(context: RequestContext): PolicyRepository {
@@ -201,7 +219,9 @@ async function routeDomainRequest(request: Request, context: RequestContext): Pr
   if (!/^\/api\/v1\/(?:leads(?:\/|$)|lead-imports$|sources$|campaigns$|qualifications\/|lifecycle\/|calls(?:\/|$)|tasks(?:\/|$)|admin\/policies$|consents$|suppressions$|templates(?:\/|$)|assets(?:\/|$)|messages\/|appointments(?:\/|$)|consultations$|clinical-decisions$|procedure-bookings$|admissions$|treatments$|financial-counseling$|insurance-cases$|quotes$|discount-requests(?:\/|$)|revenue-entries(?:\/|$)|diagnoses\/|recovery-campaigns(?:\/|$)|reports(?:\/|$)|work-queues\/|exports$)/.test(path)) return undefined;
   requireDatabase(context);
   const secure = protector(context.env);
-  const consents = new ConsentService(consentRepository(context));
+  const evidence = new D1EvidenceMetadataRegistry(context.env.DB!);
+  const consents = new ConsentService(consentRepository(context), { async verifyOwnedEvidence(input) { try { await requireEvidenceOwnership(evidence, input.tenantId, input.evidenceId); return true; } catch { return false; } } });
+  if (/^\/api\/v1\/(?:leads$|lead-imports$)/.test(path) && isWrite(request.method)) await requireIngestionAllowed(context.env, new D1RetentionRegistry(context.env.DB!), { tenantId: requireActor(context).tenantId, source: path.endsWith("lead-imports") ? "import" : "manual", containsPatientData: true, synthetic: context.env.DEPLOYMENT_ENV === "test", dataClass: "lead" });
   const handlers = [
     () => handleLeadRoutes(request, context, { leads: new LeadIntakeService(createLeadRepository(context.db), secure) }),
     () => handleSourceRoutes(request, context),
@@ -231,16 +251,20 @@ export async function routeApiRequest(request: Request, env: Env, dependencies: 
   let requestId = normalizedRequestId(request.headers.get("X-Request-Id"), dependencies.requestId ?? (() => crypto.randomUUID()));
   try {
     const preflight = corsPreflight(request, env); if (preflight) return addApiSecurityHeaders(preflight, request, env, requestId);
+    if (url.pathname.startsWith("/api/v1/webhooks/")) await limitWebhook(request, url.pathname.split("/")[4] ?? "unknown", rateLimits);
+    else if (url.pathname.startsWith("/api")) await limitUserRoute(request, rateLimits);
     const context = createRequestContext(request, env, { ...dependencies, requestId: () => requestId }); requestId = normalizedRequestId(context.requestId, () => crypto.randomUUID());
     const path = url.pathname;
     if (path === "/api/health" || path === "/api/v1/health") { if (request.method !== "GET") return addApiSecurityHeaders(methodNotAllowed(requestId, ["GET"]), request, env, requestId); return success({ service: "trh360-api", status: "ok", version: env.DEPLOYMENT_VERSION ?? "development" }, requestId, undefined, 200, request, env); }
-    if (path.startsWith("/api/v1/webhooks/")) return addApiSecurityHeaders(await handleProviderWebhook(request, env, { registry: providerRegistry(env), environment: runtimeEnvironment(env), sealPayload: (raw, inboxId) => encryptField(raw, { tenantId: "webhook-inbox", recordId: inboxId, purpose: "provider-webhook" }, env), enqueue: env.WORK_QUEUE ? (reference) => env.WORK_QUEUE!.send(reference) : undefined }), request, env, requestId);
+    if (path.startsWith("/api/v1/webhooks/")) return addApiSecurityHeaders(await handleProviderWebhook(request, env, { registry: providerRegistry(env), environment: runtimeEnvironment(env), sealPayload: async (raw, inboxId) => { const integrationId = url.pathname.split("/")[5]; const resolved = providerRegistry(env).resolveIntegration(integrationId, runtimeEnvironment(env)); if (!resolved) throw new ApiError("NOT_FOUND", 404, "Webhook route not found"); await requireIngestionAllowed(env, new D1RetentionRegistry(env.DB!), { tenantId: resolved.registration.tenantId, source: "provider_webhook", containsPatientData: true, dataClass: "lead" }); return encryptField(raw, { tenantId: resolved.registration.tenantId, recordId: inboxId, purpose: "provider-webhook" }, env); }, enqueue: env.WORK_QUEUE ? (reference) => env.WORK_QUEUE!.send(reference) : undefined }), request, env, requestId);
     if (!path.startsWith(apiPrefix)) return addApiSecurityHeaders(legacyUnsupported(requestId), request, env, requestId);
     const authResponse = await routeAuthRequest(context); if (authResponse) return addApiSecurityHeaders(authResponse, request, env, requestId);
     const accessResponse = await routeAccessRequest(context); if (accessResponse) return addApiSecurityHeaders(accessResponse, request, env, requestId);
     await authenticatedContext(context); const actor = requireActor(context);
+    const retention = await handleRetentionRoutes(request, context); if (retention) return addApiSecurityHeaders(retention, request, env, requestId);
+    const evidenceResponse = await handleEvidenceRoutes(request, context, env.EVIDENCE_BUCKET); if (evidenceResponse) return addApiSecurityHeaders(evidenceResponse, request, env, requestId);
     if (isWrite(request.method) && request.headers.get("Cookie")?.includes("crm_session=")) { const session = await authenticatedBrowserSession(request, env, context.now); if (!session) throw new ApiError("AUTHENTICATION_REQUIRED", 401, "Authentication is required"); try { await assertCsrf(request, session, env, context.now); } catch { throw new ApiError("CSRF_FAILED", 403, "CSRF token is invalid"); } }
-    const capability = routeCapability(path, request.method); if (capability && !hasCapability(actor, capability) && !actor.roles.includes("test")) throw new ApiError("FORBIDDEN", 403, "You do not have permission for this operation");
+    const capability = routeCapability(path, request.method); if (capability && !hasCapability(actor, capability)) throw new ApiError("FORBIDDEN", 403, "You do not have permission for this operation");
     if (path === "/api/v1/ready") { if (request.method !== "GET") return addApiSecurityHeaders(methodNotAllowed(requestId, ["GET"]), request, env, requestId); const report = await readiness(env); return success(report, requestId, undefined, report.ready ? 200 : 503, request, env); }
     if (path === "/api/v1/openapi.json") { if (request.method !== "GET") return addApiSecurityHeaders(methodNotAllowed(requestId, ["GET"]), request, env, requestId); return success(openApiDocument, requestId, undefined, 200, request, env); }
     if (path === "/api/v1/_fixtures/records") {

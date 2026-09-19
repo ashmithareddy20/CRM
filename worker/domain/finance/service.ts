@@ -7,6 +7,7 @@ import { requireEligibleConversion, sumMinorByCurrency } from "../conversion/pol
 export interface FinanceContext { tenantId: string; actorMembershipId: string; roles: readonly string[]; now: Date; }
 const id = () => crypto.randomUUID();
 const currency = (value: string) => /^[A-Z]{3}$/.test(value);
+export function revenueRecognitionKey(treatmentCompletionId: string, kind: "quoted" | "booked" | "recognized" | "received"): string { return `${treatmentCompletionId}:${kind}`; }
 function requireFinance(context: FinanceContext) { if (!context.roles.includes("financial_counselor")) throw new ApiError("FORBIDDEN", 403, "Financial counseling permission is required"); }
 function requireApprover(context: FinanceContext) { if (!context.roles.includes("discount_approver")) throw new ApiError("FORBIDDEN", 403, "Independent discount approval permission is required"); }
 function validateMoney(amountMinor: number, code: string) { if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0 || !currency(code)) throw new ApiError("VALIDATION_FAILED", 422, "Request validation failed", { amountMinor: "Use a positive integer minor-unit amount", currency: "Use a three-letter uppercase currency" }); }
@@ -44,12 +45,12 @@ export class FinanceService {
     const treatment = await this.db.select({ id: treatmentsCompleted.id, evidenceId: treatmentsCompleted.evidenceId, status: treatmentsCompleted.status }).from(treatmentsCompleted).where(and(eq(treatmentsCompleted.tenantId, context.tenantId), eq(treatmentsCompleted.id, command.treatmentId), eq(treatmentsCompleted.leadId, command.leadId))).get();
     if (!treatment?.evidenceId) throw new ApiError("CONFLICT", 409, "The specified completed treatment is required before recording revenue");
     try { requireEligibleConversion({ completion: treatment.status as "medical_management_completed" | "procedure_completed" | "treatment_completed", evidenceId: treatment.evidenceId }); } catch { throw new ApiError("CONFLICT", 409, "Treatment is not eligible conversion evidence"); }
-    // evidenceId is the immutable accounting reference. The guard makes retries safe until the schema gains a treatment_id column.
+    // treatmentCompletionId + kind is the revenue recognition identity. The single INSERT…SELECT guard serializes concurrent D1 recognition requests.
     const entryId = id();
-    const result = await this.db.$client.prepare("INSERT INTO crm_revenue_ledger (id, tenant_id, lead_id, treatment_completion_id, kind, amount_minor, currency, occurred_at, evidence_id, created_at, created_by_membership_id, version) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1 WHERE NOT EXISTS (SELECT 1 FROM crm_revenue_ledger WHERE tenant_id = ? AND lead_id = ? AND kind = ? AND evidence_id = ?)")
-      .bind(entryId, context.tenantId, command.leadId, command.treatmentId, command.kind, command.amountMinor, command.currency, (command.occurredAt ?? context.now).getTime(), command.evidenceId, context.now.getTime(), context.actorMembershipId, context.tenantId, command.leadId, command.kind, command.evidenceId).run();
+    const result = await this.db.$client.prepare("INSERT INTO crm_revenue_ledger (id, tenant_id, lead_id, treatment_completion_id, kind, amount_minor, currency, occurred_at, evidence_id, created_at, created_by_membership_id, version) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1 WHERE NOT EXISTS (SELECT 1 FROM crm_revenue_ledger WHERE tenant_id = ? AND treatment_completion_id = ? AND kind = ?)")
+      .bind(entryId, context.tenantId, command.leadId, command.treatmentId, command.kind, command.amountMinor, command.currency, (command.occurredAt ?? context.now).getTime(), command.evidenceId, context.now.getTime(), context.actorMembershipId, context.tenantId, command.treatmentId, command.kind).run();
     if (!result.meta.changes) {
-      const existing = await this.db.select({ id: revenueLedger.id }).from(revenueLedger).where(and(eq(revenueLedger.tenantId, context.tenantId), eq(revenueLedger.leadId, command.leadId), eq(revenueLedger.kind, command.kind), eq(revenueLedger.evidenceId, command.evidenceId))).get();
+      const existing = await this.db.select({ id: revenueLedger.id }).from(revenueLedger).where(and(eq(revenueLedger.tenantId, context.tenantId), eq(revenueLedger.treatmentCompletionId, command.treatmentId), eq(revenueLedger.kind, command.kind))).get();
       if (existing) return { entryId: existing.id, created: false, treatmentId: command.treatmentId };
       throw new ApiError("CONFLICT", 409, "Revenue entry could not be recorded");
     }

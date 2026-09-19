@@ -55,3 +55,41 @@ test("integrity indexes allow releases while preventing conflicting active state
   db.prepare("insert into crm_tasks (id,tenant_id,created_at,version,lead_id,title,due_at,status,priority) values ('task-tenant-update',?, ?,1,?,'x',?,'open','normal')").run(tenant, now, lead, now);
   assert.throws(() => db.prepare("update crm_tasks set tenant_id='demo-tenant-b' where id='task-tenant-update'").run(), /task lead must belong to tenant/);
 });
+
+test("tenant bootstrap supplies the complete lifecycle dictionary and survives repeatable seed", () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "crm-lifecycle-bootstrap-")), "test.sqlite");
+  run("scripts/migrate-baseline.mjs", "--database", file, "--environment", "local");
+  const db = new DatabaseSync(file); const now = 1_800_000_000_000;
+  db.prepare("insert into crm_tenants (id,name,slug,timezone,status,created_at,version) values ('tenant-lifecycle','Lifecycle tenant','tenant-lifecycle','UTC','active',?,1)").run(now);
+  assert.equal(db.prepare("select count(*) as count from crm_lifecycle_stages where tenant_id='tenant-lifecycle'").get().count, 20);
+  assert.equal(db.prepare("select count(*) as count from crm_lifecycle_reasons where tenant_id='tenant-lifecycle'").get().count, 8);
+  assert.equal(db.prepare("select count(*) as count from crm_allowed_transitions where tenant_id='tenant-lifecycle'").get().count, 54);
+  assert.equal(db.prepare("select count(*) as count from crm_allowed_transitions where tenant_id='tenant-lifecycle' and id='tenant-lifecycle:transition:received:assigned'").get().count, 1);
+  run("scripts/seed-backend.mjs", "--database", file, "--environment", "local");
+  run("scripts/seed-backend.mjs", "--database", file, "--environment", "local");
+  assert.equal(db.prepare("select count(*) as count from crm_lifecycle_stages where tenant_id='demo-tenant-a'").get().count, 20);
+});
+
+test("suppression effective provenance and one recognition per treatment/kind are enforced", () => {
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "crm-review-integrity-")), "test.sqlite");
+  run("scripts/migrate-baseline.mjs", "--database", file, "--environment", "local");
+  run("scripts/seed-backend.mjs", "--database", file, "--environment", "local");
+  const db = new DatabaseSync(file); const now = 1_800_000_000_000; const tenant = "demo-tenant-a"; const lead = "lead-synthetic-qualified";
+  db.prepare("insert into crm_suppressions (id,tenant_id,created_at,version,contact_id,reason,evidence_id,actor_membership_id,effective_at,active,occurred_at) values ('suppression-1',?, ?,1,'contact-synthetic-opt-in','dnc','evidence-1','member-1',?,1,?)").run(tenant, now, now, now);
+  const suppression = db.prepare("select evidence_id, actor_membership_id, state, effective_at from crm_suppressions where id='suppression-1'").get();
+  assert.equal(suppression.evidence_id, "evidence-1"); assert.equal(suppression.actor_membership_id, "member-1"); assert.equal(suppression.state, "active"); assert.equal(suppression.effective_at, now);
+  db.prepare("insert into crm_suppressions (id,tenant_id,created_at,version,contact_id,reason,actor_membership_id,supersedes_suppression_id,effective_at,active,occurred_at) values ('suppression-2',?, ?,1,'contact-synthetic-opt-in','consent_restored','member-2','suppression-1',?,1,?)").run(tenant, now, now + 1, now + 1);
+  const superseded = db.prepare("select state, active, superseded_at from crm_suppressions where id='suppression-1'").get(); assert.equal(superseded.state, "superseded"); assert.equal(superseded.active, 0); assert.equal(superseded.superseded_at, now + 1);
+  db.prepare("insert into crm_treatments_completed (id,tenant_id,created_at,version,lead_id,completion_identity,command_id,status,occurred_at) values ('treatment-recognition',?, ?,1,?,'recognition:one','command:recognition','completed',?)").run(tenant, now, lead, now);
+  db.prepare("insert into crm_revenue_ledger (id,tenant_id,created_at,version,lead_id,treatment_completion_id,kind,amount_minor,currency,occurred_at) values ('recognition-1',?, ?,1,?,'treatment-recognition','recognized',100,'INR',?)").run(tenant, now, lead, now);
+  assert.throws(() => db.prepare("insert into crm_revenue_ledger (id,tenant_id,created_at,version,lead_id,treatment_completion_id,kind,amount_minor,currency,occurred_at) values ('recognition-2',?, ?,1,?,'treatment-recognition','recognized',200,'INR',?)").run(tenant, now, lead, now), /UNIQUE constraint failed/);
+});
+
+test("migration replay accepts only known already-applied objects", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "crm-migration-replay-")); const file = path.join(dir, "known.sqlite");
+  run("scripts/migrate-baseline.mjs", "--database", file, "--environment", "local");
+  run("scripts/migrate-baseline.mjs", "--database", file, "--environment", "local");
+  const malformed = path.join(dir, "malformed.sqlite"); const db = new DatabaseSync(malformed);
+  db.exec("create table crm_not_a_recognized_schema (id text primary key)");
+  assert.throws(() => run("scripts/migrate-baseline.mjs", "--database", malformed, "--environment", "local"), /Unknown database shape/);
+});

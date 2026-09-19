@@ -4,10 +4,12 @@ import { appointmentEvents, appointmentSeries, branches, doctorAvailability, doc
 import { ApiError } from "../../api/errors";
 
 export type AppointmentStatus = "suggested" | "considering" | "booked" | "confirmation_pending" | "confirmed" | "rescheduled" | "cancelled" | "no_show" | "arrived" | "consultation_completed";
-export interface AppointmentContext { tenantId: string; actorMembershipId: string; now: Date; }
+export interface AppointmentContext { tenantId: string; actorMembershipId: string; roles: readonly string[]; now: Date; }
 export interface AppointmentCommand { leadId: string; doctorId: string; branchId: string; startsAt: Date; durationMinutes: number; status?: Extract<AppointmentStatus, "suggested" | "considering" | "booked" | "confirmation_pending">; patientPreference?: string; }
 export interface AppointmentRecord { id: string; seriesId: string; leadId: string; doctorId: string; branchId: string; startsAt: Date; endsAt: Date; status: AppointmentStatus; version: number; }
-const activeReservationStatuses = new Set<AppointmentStatus>(["confirmed"]);
+/** Approved booking policy: booked and confirmation-pending slots are held. Suggestions never hold inventory. */
+const activeReservationStatuses = new Set<AppointmentStatus>(["booked", "confirmation_pending", "confirmed"]);
+export function appointmentReservesSlot(status: AppointmentStatus): boolean { return activeReservationStatuses.has(status); }
 const transitions: Readonly<Record<AppointmentStatus, readonly AppointmentStatus[]>> = {
   suggested: ["considering", "cancelled"], considering: ["booked", "cancelled"], booked: ["confirmation_pending", "confirmed", "cancelled", "rescheduled"], confirmation_pending: ["confirmed", "cancelled", "rescheduled"], confirmed: ["arrived", "no_show", "cancelled", "rescheduled"], arrived: ["consultation_completed"], consultation_completed: [], rescheduled: [], cancelled: [], no_show: [],
 };
@@ -33,7 +35,7 @@ export class AppointmentService {
 
     const seriesId = id(); const appointmentId = id();
     const record: AppointmentRecord = { id: appointmentId, seriesId, leadId: command.leadId, doctorId: command.doctorId, branchId: command.branchId, startsAt: command.startsAt, endsAt, status, version: 1 };
-    const reservations = activeReservationStatuses.has(status) ? reservationRows(context, record, this.slotMinutes) : [];
+    const reservations = appointmentReservesSlot(status) ? reservationRows(context, record, this.slotMinutes) : [];
     try {
       await this.db.batch([
         this.db.insert(appointmentSeries).values({ id: seriesId, tenantId: context.tenantId, leadId: command.leadId, doctorId: command.doctorId, branchId: command.branchId, status: "active", createdAt: context.now, createdByMembershipId: context.actorMembershipId }),
@@ -48,14 +50,14 @@ export class AppointmentService {
     const current = await this.get(context.tenantId, appointmentId);
     if (!current || current.version !== expectedVersion) throw new ApiError("CONFLICT", 409, "Appointment has changed");
     await this.requireBranchAssignment(context, current.branchId);
+    if ((status === "arrived" || status === "consultation_completed")) await this.requireAssignedClinician(context, current.doctorId, current.branchId);
     if (!isLegalAppointmentTransition(current.status, status)) throw new ApiError("CONFLICT", 409, "Illegal appointment state transition");
     if ((status === "cancelled" || status === "no_show") && !reason?.trim()) throw new ApiError("VALIDATION_FAILED", 422, "Request validation failed", { reason: "Cancellation or no-show reason is required" });
     const update = this.db.update(appointmentEvents).set({ status, updatedAt: context.now, updatedByMembershipId: context.actorMembershipId, version: sql`${appointmentEvents.version} + 1` }).where(and(eq(appointmentEvents.tenantId, context.tenantId), eq(appointmentEvents.id, appointmentId), eq(appointmentEvents.version, expectedVersion)));
     const statements: unknown[] = [update];
-    if (status === "confirmed") {
-      await this.requireAvailability(context.tenantId, current.doctorId, current.startsAt, current.endsAt);
-      statements.push(...reservationRows(context, current, this.slotMinutes).map((row) => this.db.insert(slotReservations).values(row)));
-    }
+    // Booked/confirmation-pending inventory is already active by policy. Confirmation is therefore a pure
+    // CAS transition: it can neither create orphan slots nor race a second holder for the same slot.
+    if (status === "confirmed") await this.requireAvailability(context.tenantId, current.doctorId, current.startsAt, current.endsAt);
     if (status === "cancelled" || status === "no_show") statements.push(this.releaseActiveReservations(context, appointmentId));
     try {
       const [first, ...rest] = statements;
@@ -83,7 +85,7 @@ export class AppointmentService {
       const statements = [update,
         this.releaseActiveReservations(context, appointmentId),
         this.db.insert(appointmentEvents).values({ ...replacement, tenantId: context.tenantId, createdAt: context.now, createdByMembershipId: context.actorMembershipId }),
-        ...(activeReservationStatuses.has(replacement.status) ? reservationRows(context, replacement, this.slotMinutes).map((row) => this.db.insert(slotReservations).values(row)) : []),
+        ...(appointmentReservesSlot(replacement.status) ? reservationRows(context, replacement, this.slotMinutes).map((row) => this.db.insert(slotReservations).values(row)) : []),
       ];
       const [first, ...rest] = statements;
       if (!first) throw new ApiError("INTERNAL_ERROR", 500, "Appointment update is unavailable");
@@ -94,15 +96,21 @@ export class AppointmentService {
   }
 
   private releaseActiveReservations(context: AppointmentContext, appointmentId: string) {
-    return this.db.update(slotReservations).set({ status: `released:${appointmentId}`, updatedAt: context.now, updatedByMembershipId: context.actorMembershipId }).where(and(eq(slotReservations.tenantId, context.tenantId), eq(slotReservations.appointmentId, appointmentId), eq(slotReservations.status, "active")));
+    return this.db.update(slotReservations).set({ status: "released", updatedAt: context.now, updatedByMembershipId: context.actorMembershipId }).where(and(eq(slotReservations.tenantId, context.tenantId), eq(slotReservations.appointmentId, appointmentId), eq(slotReservations.status, "active")));
   }
   private async requireAvailability(tenantId: string, doctorId: string, startsAt: Date, endsAt: Date) {
     const available = await this.db.select({ id: doctorAvailability.id }).from(doctorAvailability).where(and(eq(doctorAvailability.tenantId, tenantId), eq(doctorAvailability.doctorId, doctorId), eq(doctorAvailability.status, "available"), lte(doctorAvailability.startsAt, startsAt), gte(doctorAvailability.endsAt, endsAt))).get();
     if (!available) throw new ApiError("CONFLICT", 409, "Requested time is unavailable");
   }
+  private async requireAssignedClinician(context: AppointmentContext, doctorId: string, branchId: string) {
+    if (!context.roles.includes("clinician")) throw new ApiError("FORBIDDEN", 403, "Arrival and consultation require the assigned clinician");
+    const doctor = await this.db.select({ id: doctors.id }).from(doctors).where(and(eq(doctors.tenantId, context.tenantId), eq(doctors.id, doctorId), eq(doctors.branchId, branchId), eq(doctors.membershipId, context.actorMembershipId), eq(doctors.active, true))).get();
+    if (!doctor) throw new ApiError("FORBIDDEN", 403, "Clinician is not assigned to this appointment");
+  }
   private async requireBranchAssignment(context: AppointmentContext, branchId: string) {
     const branch = await this.db.select({ timezone: branches.timezone }).from(branches).where(and(eq(branches.tenantId, context.tenantId), eq(branches.id, branchId), eq(branches.status, "active"))).get();
     if (!branch || !validTimezone(branch.timezone)) throw new ApiError("CONFLICT", 409, "Appointment branch is unavailable or misconfigured");
+    if (context.roles.some((role) => ["operations", "scheduler", "manager"].includes(role))) return;
     const assignment = await this.db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.tenantId, context.tenantId), eq(memberships.id, context.actorMembershipId), eq(memberships.status, "active"), eq(memberships.branchId, branchId))).get();
     if (!assignment) throw new ApiError("FORBIDDEN", 403, "Actor is not assigned to this branch");
   }

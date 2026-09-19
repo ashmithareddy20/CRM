@@ -2,19 +2,11 @@
   "version": "7",
   "dialect": "sqlite",
   "entries": [
-    {
-      "idx": 0,
-      "version": "6",
-      "when": 1789823454404,
-      "tag": "0000_moaning_cammi",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1789827000000,
-      "tag": "0003_integrity_review_guards",
-      "breakpoints": true
-    }
+    { "idx": 0, "version": "6", "when": 1789823454404, "tag": "0000_moaning_cammi", "breakpoints": true },
+    { "idx": 1, "version": "6", "when": 1789824000000, "tag": "0001_tenant_guards", "breakpoints": true },
+    { "idx": 2, "version": "6", "when": 1789825000000, "tag": "0002_domain_guards", "breakpoints": true },
+    { "idx": 3, "version": "6", "when": 1789827000000, "tag": "0003_integrity_review_guards", "breakpoints": true },
+    { "idx": 4, "version": "6", "when": 1789828000000, "tag": "0004_review_bootstrap_and_dimensions", "breakpoints": true },
+    { "idx": 5, "version": "6", "when": 1789829000000, "tag": "0005_lifecycle_bootstrap", "breakpoints": true }
   ]
 }

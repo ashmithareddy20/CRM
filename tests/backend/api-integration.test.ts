@@ -26,14 +26,14 @@ describe("composed API runtime", () => {
     expect(reports?.status).toBe(401);
   });
 
-  it("reaches the authenticated composition boundary without fabricating a database fallback", async () => {
+  it("does not grant a test identity production capabilities", async () => {
     const response = await api("/api/v1/leads", {
       method: "POST",
       headers: { ...identity, "Content-Type": "application/json", "Idempotency-Key": "composition-boundary" },
       body: JSON.stringify({}),
     });
-    expect(response?.status).toBe(503);
-    expect(await response?.json()).toMatchObject({ success: false, error: { code: "SERVICE_UNAVAILABLE", requestId: "integration-request" } });
+    expect(response?.status).toBe(403);
+    expect(await response?.json()).toMatchObject({ success: false, error: { code: "FORBIDDEN", requestId: "integration-request" } });
   });
 
   it("keeps provider ingress outside user-session middleware while failing closed without a configured integration", async () => {

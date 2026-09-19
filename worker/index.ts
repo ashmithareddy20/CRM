@@ -52,12 +52,22 @@ async function decryptJobPayload<T>(env: Env, tenantId: string, jobId: string, t
   try { return JSON.parse(await decryptField(payload, { tenantId, recordId: jobId, purpose: `job:${type}` }, env)) as T; }
   catch { return JSON.parse(payload) as T; }
 }
+function canonicalFactDimensions(type: string, payload: Record<string, unknown>): Record<string, string | number | boolean> {
+  const dimensions: Record<string, string | number | boolean> = {};
+  for (const key of ["leadId", "branchId", "sourceId", "campaignId", "assignedMembershipId", "originalAssignedMembershipId", "diseaseId", "treatmentId", "doctorId", "channel", "evidenceId", "outcome", "qualification", "messageAttemptId", "attemptId", "currency"] as const) { const value = payload[key]; if (["string", "number", "boolean"].includes(typeof value)) dimensions[key] = value as string | number | boolean; }
+  if (type === "call.attempt_recorded") dimensions.outcome ??= "attempted";
+  return dimensions;
+}
+function canonicalFactType(type: string): string {
+  const map: Record<string, string> = { "lifecycle.transitioned": "lead.lifecycle_transitioned", "call.attempt_recorded": "call.attempted", "call.meaningful_connection": "call.meaningful_connection", "message.accepted": "message.accepted", "message.delivered": "message.delivered", "message.failed": "message.failed", "message.replied": "message.replied", "recovery.enrolled": "recovery.enrolled", "revenue.recognized": "revenue.recognized", "revenue.reversed": "revenue.reversed" };
+  return map[type] ?? type;
+}
 function workProcessor(env: Env): WorkProcessor {
   const db = database(env);
   const lookup = async (reference: OpaqueWorkReference) => {
-    if (reference.kind === "outbox") return db.prepare("SELECT tenant_id AS tenantId, created_at AS createdAt, 0 AS attempts FROM crm_transactional_outbox WHERE id = ?").bind(reference.id).first<{ tenantId: string; createdAt: number; attempts: number }>();
+    if (reference.kind === "outbox") return db.prepare("SELECT tenant_id AS tenantId, created_at AS createdAt, attempts FROM crm_transactional_outbox WHERE id = ?").bind(reference.id).first<{ tenantId: string; createdAt: number; attempts: number }>();
     if (reference.kind === "job") return db.prepare("SELECT tenant_id AS tenantId, created_at AS createdAt, attempts FROM crm_durable_jobs WHERE id = ?").bind(reference.id).first<{ tenantId: string; createdAt: number; attempts: number }>();
-    return db.prepare("SELECT tenant_id AS tenantId, received_at AS createdAt, 0 AS attempts FROM crm_webhook_inbox WHERE id = ?").bind(reference.id).first<{ tenantId: string; createdAt: number; attempts: number }>();
+    return db.prepare("SELECT tenant_id AS tenantId, received_at AS createdAt, attempts FROM crm_webhook_inbox WHERE id = ?").bind(reference.id).first<{ tenantId: string; createdAt: number; attempts: number }>();
   };
   return {
     async process(reference) {
@@ -68,7 +78,7 @@ function workProcessor(env: Env): WorkProcessor {
         // Every operational event gets an idempotent report projection command. The
         // projection input contains only event identifiers/dimensions already in D1.
         const projectionId = `projection:${reference.id}`;
-        await db.prepare("INSERT OR IGNORE INTO crm_durable_jobs (id, tenant_id, type, payload_ciphertext, due_at, state, attempts, created_at, version) VALUES (?, ?, 'report.projection', ?, ?, 'pending', 0, ?, 1)").bind(projectionId, outbox.tenantId, JSON.stringify({ actorMembershipId: "system", fact: { sourceEventId: reference.id, type: outbox.type, occurredAt: new Date().toISOString(), dimensions: event } }), Date.now(), Date.now()).run();
+        await db.prepare("INSERT OR IGNORE INTO crm_durable_jobs (id, tenant_id, type, payload_ciphertext, due_at, state, attempts, created_at, version) VALUES (?, ?, 'report.projection', ?, ?, 'pending', 0, ?, 1)").bind(projectionId, outbox.tenantId, JSON.stringify({ actorMembershipId: "system", fact: { sourceEventId: reference.id, type: canonicalFactType(outbox.type), occurredAt: new Date().toISOString(), dimensions: canonicalFactDimensions(outbox.type, event) } }), Date.now(), Date.now()).run();
         await db.prepare("UPDATE crm_transactional_outbox SET status = 'processed', published_at = COALESCE(published_at, ?), updated_at = ? WHERE id = ? AND status IN ('published', 'pending')").bind(Date.now(), Date.now(), reference.id).run();
         return;
       }
@@ -88,7 +98,7 @@ function workProcessor(env: Env): WorkProcessor {
       const payload = await decryptJobPayload<Record<string, unknown>>(env, job.tenantId, reference.id, job.type, job.payload);
       const reporting = new ReportingService(db);
       if (job.type === "report.export") await runReportingJob(reporting, { kind: "export", tenantId: job.tenantId, actorMembershipId: String(payload.actorMembershipId ?? "system"), reportRunId: String(payload.reportRunId ?? "") }, { store: { put: async (key, body, options) => { if (!env.EVIDENCE_BUCKET) throw new Error("export_bucket_unavailable"); await env.EVIDENCE_BUCKET.put(key, body, { httpMetadata: { contentType: options.contentType }, customMetadata: options.metadata }); } }, runs: { get: async (tenantId, id) => (await db.prepare("SELECT id, type, filters_json AS filtersJson, status FROM crm_report_runs WHERE tenant_id = ? AND id = ?").bind(tenantId, id).first<{ id: string; type: string; filtersJson: string; status: string }>()) ?? undefined, complete: async (tenantId, id, result) => { await db.prepare("UPDATE crm_report_runs SET status = 'completed', completed_at = ?, updated_at = ? WHERE tenant_id = ? AND id = ?").bind(Date.now(), Date.now(), tenantId, id).run(); }, fail: async (tenantId, id) => { await db.prepare("UPDATE crm_report_runs SET status = 'failed', updated_at = ? WHERE tenant_id = ? AND id = ?").bind(Date.now(), tenantId, id).run(); } } });
-      else if (job.type === "report.projection") await runReportingJob(reporting, { kind: "projection", tenantId: job.tenantId, actorMembershipId: String(payload.actorMembershipId ?? "system"), fact: payload.fact as ReportingFact });
+      else if (job.type === "report.projection") { const fact = payload.fact as Record<string, unknown> | undefined; if (!fact || typeof fact.occurredAt !== "string" || Number.isNaN(new Date(fact.occurredAt).getTime())) throw new Error("invalid_reporting_fact"); await runReportingJob(reporting, { kind: "projection", tenantId: job.tenantId, actorMembershipId: String(payload.actorMembershipId ?? "system"), fact: { ...fact, occurredAt: new Date(fact.occurredAt) } as ReportingFact }); }
       else if (job.type === "report.daily_aggregate") await runReportingJob(reporting, { kind: "daily_aggregate", tenantId: job.tenantId, actorMembershipId: String(payload.actorMembershipId ?? "system"), localDate: String(payload.localDate ?? ""), timezone: typeof payload.timezone === "string" ? payload.timezone : undefined });
       else if (job.type === "communication.dispatch") {
         const integrationId = String(payload.integrationId ?? ""); const configured = providerRegistry(env).resolve(job.tenantId, integrationId, runtimeEnvironment(env));
@@ -116,12 +126,14 @@ function workProcessor(env: Env): WorkProcessor {
     async attempts(reference) { return (await lookup(reference))?.attempts ?? 0; },
     async reschedule(reference, at, reason) {
       if (reference.kind === "job") await db.prepare("UPDATE crm_durable_jobs SET state = 'pending', due_at = ?, lease_expires_at = NULL, updated_at = ? WHERE id = ?").bind(at.getTime(), Date.now(), reference.id).run();
-      else if (reference.kind === "outbox") await db.prepare("UPDATE crm_transactional_outbox SET status = 'pending', available_at = ?, updated_at = ? WHERE id = ?").bind(at.getTime(), Date.now(), reference.id).run();
-      else await db.prepare("UPDATE crm_webhook_inbox SET status = 'received', updated_at = ? WHERE id = ?").bind(Date.now(), reference.id).run();
+      else if (reference.kind === "outbox") await db.prepare("UPDATE crm_transactional_outbox SET status = 'pending', attempts = attempts + 1, next_attempt_at = ?, available_at = ?, updated_at = ? WHERE id = ?").bind(at.getTime(), at.getTime(), Date.now(), reference.id).run();
+      else await db.prepare("UPDATE crm_webhook_inbox SET status = 'received', attempts = attempts + 1, next_attempt_at = ?, updated_at = ? WHERE id = ?").bind(at.getTime(), Date.now(), reference.id).run();
       console.warn("Durable work rescheduled", { kind: reference.kind, id: reference.id, reason });
     },
   };
 }
+
+export { workProcessor };
 
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -158,11 +170,10 @@ const worker = {
   async queue(batch: QueueBatch<OpaqueWorkReference>, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.DB) { for (const message of batch.messages) message.retry(); return; }
     const processor = workProcessor(env);
-    for (const message of batch.messages) {
-      ctx.waitUntil(consumeWorkReference(env.DB, processor, message.body).then((outcome) => {
-        if (outcome === "ack") message.ack(); else message.retry();
-      }).catch(() => message.retry()));
-    }
+    await Promise.all(batch.messages.map(async (message) => {
+      try { const outcome = await consumeWorkReference(env.DB!, processor, message.body); if (outcome === "ack") message.ack(); else message.retry(); }
+      catch { message.retry(); }
+    }));
   },
 };
 

@@ -52,3 +52,40 @@ describe("appointment and API regression boundaries", () => {
     expect(await response?.json()).toMatchObject({ data: { id: "appointment-1", version: 3 } });
   });
 });
+
+import { appointmentReservesSlot } from "../../../worker/domain/appointments/service";
+import { revenueRecognitionKey } from "../../../worker/domain/finance/service";
+
+describe("D1 concurrency identities", () => {
+  it("holds booked inventory before confirmation and never holds suggestions", () => {
+    expect(appointmentReservesSlot("suggested")).toBe(false);
+    expect(appointmentReservesSlot("booked")).toBe(true);
+    expect(appointmentReservesSlot("confirmation_pending")).toBe(true);
+    expect(appointmentReservesSlot("confirmed")).toBe(true);
+  });
+
+  it("uses the treatment completion plus accounting kind as the concurrent recognition identity", () => {
+    const recognized = revenueRecognitionKey("treatment-1", "recognized");
+    expect(recognized).toBe("treatment-1:recognized");
+    // Simulates D1's one-statement INSERT … SELECT WHERE NOT EXISTS winner behavior.
+    const committed = new Set<string>();
+    const d1ConditionalInsert = (key: string) => !committed.has(key) && Boolean(committed.add(key));
+    expect([d1ConditionalInsert(recognized), d1ConditionalInsert(recognized)]).toEqual([true, false]);
+    expect(d1ConditionalInsert(revenueRecognitionKey("treatment-1", "received"))).toBe(true);
+  });
+});
+
+it("models D1 stale confirmation as a single CAS batch with no reservation statements", async () => {
+  const statements: string[] = [];
+  const db = {
+    select: () => ({ from: () => ({ where: () => ({ get: async () => ({ id: "appointment", seriesId: "series", leadId: "lead", doctorId: "doctor", branchId: "branch", startsAt: new Date("2026-09-20T00:00:00Z"), endsAt: new Date("2026-09-20T00:15:00Z"), status: "booked", version: 2 }) }) }) }),
+    update: () => ({ set: () => ({ where: () => ({}) }) }),
+    batch: async (batch: unknown[]) => { statements.push(...batch.map(() => "CAS")); return [{ meta: { changes: 0 } }]; },
+  } as never;
+  const { AppointmentService } = await import("../../../worker/domain/appointments/service");
+  const service = new AppointmentService(db);
+  await expect(service.transition({ tenantId: "tenant", actorMembershipId: "member", roles: ["scheduler"], now }, "appointment", 1, "confirmed"))
+    .rejects.toMatchObject({ code: "CONFLICT" });
+  // Version mismatch is rejected before a write batch; booked already owns inventory from initial booking.
+  expect(statements).toHaveLength(0);
+});

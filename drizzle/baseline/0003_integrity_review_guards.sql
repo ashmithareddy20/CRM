@@ -2,7 +2,7 @@
 -- New nullable identity/link columns permit a safe expand step for existing data;
 -- command handlers will make them required as their writes are upgraded.
 DROP INDEX IF EXISTS `crm_slot_occupied_uq`;--> statement-breakpoint
-CREATE UNIQUE INDEX `crm_slot_active_occupancy_uq`
+CREATE UNIQUE INDEX IF NOT EXISTS `crm_slot_active_occupancy_uq`
 ON `crm_slot_reservations` (`tenant_id`, `doctor_id`, `branch_id`, `slot_start_at`)
 WHERE `status` = 'active';--> statement-breakpoint
 CREATE INDEX `crm_slot_lookup_idx` ON `crm_slot_reservations` (`tenant_id`, `doctor_id`, `branch_id`, `slot_start_at`, `status`);--> statement-breakpoint

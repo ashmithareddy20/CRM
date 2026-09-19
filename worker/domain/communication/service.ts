@@ -8,7 +8,7 @@ export type MessageChannel = Exclude<ConsentChannel, "call">;
 export type MessageStatus = "planned" | "accepted" | "sent" | "delivered" | "failed" | "read" | "replied" | "clicked" | "delivery_unknown" | "cancelled" | "blocked";
 export type RequestedChannel = MessageChannel | "rich";
 export interface DispatchGate { tenantId: string; contactId: string; activeTouchId?: string; reservedUntil?: Date; lastAcceptedAt?: Date; version: number; }
-export interface MessageAttempt { id: string; tenantId: string; touchId?: string; contactId: string; channel: MessageChannel; requestedChannel: RequestedChannel; purpose: string; templateVersionId?: string; acceptedContentHash?: string; provider?: string; providerMessageId?: string; status: MessageStatus; acceptedAt?: Date; createdAt: Date; }
+export interface MessageAttempt { id: string; tenantId: string; touchId?: string; journeyId?: string; contactId: string; channel: MessageChannel; requestedChannel: RequestedChannel; fallbackReason?: string; purpose: string; templateVersionId?: string; acceptedContentHash?: string; provider?: string; providerMessageId?: string; status: MessageStatus; acceptedAt?: Date; createdAt: Date; }
 export interface MessageEvent { id: string; tenantId: string; attemptId: string; providerEventId: string; type: MessageStatus; occurredAt: Date; }
 export interface DispatchRepository {
   getGate(tenantId: string, contactId: string): Promise<DispatchGate | undefined>;
@@ -17,14 +17,15 @@ export interface DispatchRepository {
   releaseGate(tenantId: string, contactId: string, touchId: string, now: Date, acceptedAt?: Date): Promise<void>;
   latestAccepted(tenantId: string, contactId: string): Promise<MessageAttempt | undefined>;
   hasContentHash(tenantId: string, contactId: string, hash: string, since: Date): Promise<boolean>;
-  acceptedHistory?(tenantId: string, contactId: string): Promise<readonly MessageAttempt[]>;
+  /** Restrict channel alternation to the current journey; cadence itself remains contact-wide. */
+  acceptedHistory?(tenantId: string, contactId: string, journeyId?: string): Promise<readonly MessageAttempt[]>;
   createAttempt(attempt: MessageAttempt): Promise<void>;
   getAttempt(tenantId: string, attemptId: string): Promise<MessageAttempt | undefined>;
   updateAttempt(attempt: MessageAttempt): Promise<void>;
   appendEvent(event: MessageEvent): Promise<boolean>;
   pauseRoutineTouches(tenantId: string, contactId: string, reason: "reply" | "booking" | "conversion" | "consent_loss" | "invalid_contact"): Promise<void>;
 }
-export interface DispatchInput { tenantId: string; contactId: string; touchId: string; purpose: string; requestedChannel: RequestedChannel; templateVersion: TemplateVersion; integrationId: string; provider: ChannelProviderAdapter; now: Date; operationId: string; }
+export interface DispatchInput { tenantId: string; contactId: string; touchId: string; journeyId?: string; purpose: string; requestedChannel: RequestedChannel; /** A rich slot may use this only after cadence has elapsed and no RCS/MMS capability exists. */ singleChannelFallback?: { channel: "whatsapp"; reason: string }; templateVersion: TemplateVersion; integrationId: string; provider: ChannelProviderAdapter; now: Date; operationId: string; }
 export interface DispatchResult { attempt: MessageAttempt; state: "accepted" | "blocked" | "manual_resolution_required"; reason?: string; }
 export const MIN_OUTBOUND_INTERVAL_MS = 48 * 60 * 60 * 1000;
 export const CONTENT_REPETITION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -41,7 +42,9 @@ export class CommunicationService {
   constructor(private readonly repository: DispatchRepository, private readonly consents: ConsentService, private readonly minimumIntervalMs = MIN_OUTBOUND_INTERVAL_MS, private readonly contentRepetitionWindowMs = CONTENT_REPETITION_WINDOW_MS) {}
 
   async dispatch(input: DispatchInput): Promise<DispatchResult> {
-    const channel = input.requestedChannel === "rich" ? resolveRichChannel(input.provider) : input.requestedChannel;
+    const richChannel = input.requestedChannel === "rich" ? resolveRichChannel(input.provider) : undefined;
+    const fallback = input.requestedChannel === "rich" && !richChannel ? input.singleChannelFallback : undefined;
+    const channel = input.requestedChannel === "rich" ? richChannel ?? fallback?.channel : input.requestedChannel;
     if (!channel) return this.blocked(input, "rich_channel_unavailable");
     if (!input.templateVersion.approvedAt) return this.blocked(input, "template_not_approved", channel);
     const consent = await this.consents.evaluate(input.tenantId, input.contactId, input.purpose, channel, input.now);
@@ -52,17 +55,18 @@ export class CommunicationService {
     if (await this.repository.hasContentHash(input.tenantId, input.contactId, input.templateVersion.contentHash, new Date(input.now.getTime() - this.contentRepetitionWindowMs))) return this.blocked(input, "content_repetition", channel);
     const latestAccepted = await this.repository.latestAccepted(input.tenantId, input.contactId);
     const acceptedHistory: readonly MessageAttempt[] = this.repository.acceptedHistory
-      ? await this.repository.acceptedHistory(input.tenantId, input.contactId)
+      ? await this.repository.acceptedHistory(input.tenantId, input.contactId, input.journeyId)
       : latestAccepted ? [latestAccepted] : [];
     const lastChannel = [...acceptedHistory].sort((a, b) => (b.acceptedAt?.getTime() ?? 0) - (a.acceptedAt?.getTime() ?? 0))[0]?.channel;
-    if (lastChannel === channel) return this.blocked(input, "channel_not_alternating", channel);
+    // A documented fallback is the sole exception to alternation; cadence and consent were checked above.
+    if (!fallback && lastChannel === channel) return this.blocked(input, "channel_not_alternating", channel);
     if (gate?.activeTouchId && gate.activeTouchId !== input.touchId && (!gate.reservedUntil || gate.reservedUntil > input.now)) return this.blocked(input, "contact_gate_reserved", channel);
     const reservation = await this.repository.reserveGate({ tenantId: input.tenantId, contactId: input.contactId, touchId: input.touchId, now: input.now, reservedUntil: new Date(input.now.getTime() + 5 * 60_000), expectedVersion: gate?.version });
     if (!reservation) return this.blocked(input, "contact_gate_race", channel);
     // State can change while queued. Always re-evaluate immediately before provider dispatch.
     const immediate = await this.consents.evaluate(input.tenantId, input.contactId, input.purpose, channel, input.now);
     if (!immediate.allowed) { await this.repository.releaseGate(input.tenantId, input.contactId, input.touchId, input.now); await this.repository.pauseRoutineTouches(input.tenantId, input.contactId, "consent_loss"); return this.blocked(input, `consent_${immediate.reason}`, channel); }
-    const attempt: MessageAttempt = { id: id(), tenantId: input.tenantId, touchId: input.touchId, contactId: input.contactId, channel, requestedChannel: input.requestedChannel, purpose: input.purpose, templateVersionId: input.templateVersion.id, acceptedContentHash: input.templateVersion.contentHash, provider: input.provider.provider, status: "planned", createdAt: input.now };
+    const attempt: MessageAttempt = { id: id(), tenantId: input.tenantId, touchId: input.touchId, ...(input.journeyId ? { journeyId: input.journeyId } : {}), contactId: input.contactId, channel, requestedChannel: input.requestedChannel, ...(fallback ? { fallbackReason: fallback.reason } : {}), purpose: input.purpose, templateVersionId: input.templateVersion.id, acceptedContentHash: input.templateVersion.contentHash, provider: input.provider.provider, status: "planned", createdAt: input.now };
     await this.repository.createAttempt(attempt);
     try {
       const sent = await input.provider.send({ operationId: input.operationId, tenantId: input.tenantId, integrationId: input.integrationId, channel, idempotencyKey: `message:${attempt.id}`, messageAttemptId: attempt.id });
@@ -87,7 +91,7 @@ export class CommunicationService {
     const inserted = await this.repository.appendEvent({ ...input, id: id() });
     if (!inserted) return false;
     const attempt = await this.repository.getAttempt(input.tenantId, input.attemptId);
-    if (attempt) { attempt.status = input.type; await this.repository.updateAttempt(attempt); }
+    if (attempt && shouldAdvanceStatus(attempt.status, input.type)) { attempt.status = input.type; await this.repository.updateAttempt(attempt); }
     return true;
   }
   async reconcileAttempt(input: { tenantId: string; attemptId: string; integrationId: string; provider: ChannelProviderAdapter }): Promise<"resolved" | "manual_resolution_required"> {
@@ -95,13 +99,17 @@ export class CommunicationService {
     if (!attempt || attempt.status !== "delivery_unknown" || !attempt.providerMessageId || !input.provider.capabilities.supportsReconciliation) return "manual_resolution_required";
     const result = await input.provider.reconcile({ tenantId: input.tenantId, integrationId: input.integrationId, providerMessageId: attempt.providerMessageId });
     if (!result) return "manual_resolution_required";
-    attempt.status = receiptStatus(result.state); attempt.providerMessageId = result.providerMessageId; if (result.state === "accepted") attempt.acceptedAt ??= new Date();
+    const next = receiptStatus(result.state);
+    if (next === "accepted" && attempt.status === "delivery_unknown") attempt.status = next;
+    else if (shouldAdvanceStatus(attempt.status, next)) attempt.status = next;
+    attempt.providerMessageId = result.providerMessageId;
+    if (result.state === "accepted") attempt.acceptedAt ??= new Date();
     await this.repository.updateAttempt(attempt); return "resolved";
   }
   async pause(tenantId: string, contactId: string, reason: "reply" | "booking" | "conversion" | "consent_loss" | "invalid_contact") { await this.repository.pauseRoutineTouches(tenantId, contactId, reason); }
   async pauseForAttempt(tenantId: string, attemptId: string, reason: "reply" | "booking" | "conversion" | "consent_loss" | "invalid_contact") { const attempt = await this.repository.getAttempt(tenantId, attemptId); if (attempt) await this.pause(tenantId, attempt.contactId, reason); }
   private async blocked(input: DispatchInput, reason: string, channel: MessageChannel = input.requestedChannel === "rich" ? "rcs" : input.requestedChannel): Promise<DispatchResult> {
-    const attempt: MessageAttempt = { id: id(), tenantId: input.tenantId, touchId: input.touchId, contactId: input.contactId, channel, requestedChannel: input.requestedChannel, purpose: input.purpose, templateVersionId: input.templateVersion.id, acceptedContentHash: input.templateVersion.contentHash, provider: input.provider.provider, status: "blocked", createdAt: input.now };
+    const attempt: MessageAttempt = { id: id(), tenantId: input.tenantId, touchId: input.touchId, ...(input.journeyId ? { journeyId: input.journeyId } : {}), contactId: input.contactId, channel, requestedChannel: input.requestedChannel, ...(input.singleChannelFallback ? { fallbackReason: input.singleChannelFallback.reason } : {}), purpose: input.purpose, templateVersionId: input.templateVersion.id, acceptedContentHash: input.templateVersion.contentHash, provider: input.provider.provider, status: "blocked", createdAt: input.now };
     await this.repository.createAttempt(attempt); return { attempt, state: "blocked", reason };
   }
 }
@@ -114,7 +122,7 @@ export class MemoryDispatchRepository implements DispatchRepository {
   async releaseGate(tenantId: string, contactId: string, touchId: string, _now: Date, acceptedAt?: Date) { const gate = await this.getGate(tenantId, contactId); if (gate?.activeTouchId === touchId) this.gates.set(this.key(tenantId, contactId), { ...gate, activeTouchId: undefined, reservedUntil: undefined, lastAcceptedAt: acceptedAt ?? gate.lastAcceptedAt, version: gate.version + 1 }); }
   async latestAccepted(tenantId: string, contactId: string) { return this.attempts.filter((item) => item.tenantId === tenantId && item.contactId === contactId && item.acceptedAt).sort((a, b) => b.acceptedAt!.getTime() - a.acceptedAt!.getTime())[0]; }
   async hasContentHash(tenantId: string, contactId: string, hash: string, since: Date) { return this.attempts.some((item) => item.tenantId === tenantId && item.contactId === contactId && item.acceptedContentHash === hash && Boolean(item.acceptedAt && item.acceptedAt >= since)); }
-  async acceptedHistory(tenantId: string, contactId: string) { return this.attempts.filter((item) => item.tenantId === tenantId && item.contactId === contactId && Boolean(item.acceptedAt)); }
+  async acceptedHistory(tenantId: string, contactId: string, journeyId?: string) { return this.attempts.filter((item) => item.tenantId === tenantId && item.contactId === contactId && Boolean(item.acceptedAt) && (!journeyId || item.journeyId === journeyId)); }
   async createAttempt(attempt: MessageAttempt) { this.attempts.push(attempt); }
   async getAttempt(tenantId: string, attemptId: string) { return this.attempts.find((item) => item.tenantId === tenantId && item.id === attemptId); }
   async updateAttempt(attempt: MessageAttempt) { const index = this.attempts.findIndex((item) => item.id === attempt.id); if (index >= 0) this.attempts[index] = { ...attempt }; }
@@ -123,3 +131,11 @@ export class MemoryDispatchRepository implements DispatchRepository {
 }
 
 function receiptStatus(state: DeliveryState): MessageStatus { return state === "unsupported" ? "failed" : state; }
+const STATUS_RANK: Readonly<Record<MessageStatus, number>> = { planned: 0, blocked: 0, accepted: 1, sent: 2, delivery_unknown: 2, delivered: 3, read: 4, clicked: 4, replied: 5, failed: 6, cancelled: 6 };
+/** Receipts are append-only; stale or contradictory provider events may be retained but never regress a confirmed status. */
+export function shouldAdvanceStatus(current: MessageStatus, incoming: MessageStatus): boolean {
+  if (current === incoming) return false;
+  if (["failed", "cancelled"].includes(current)) return false;
+  if (["failed", "cancelled"].includes(incoming)) return STATUS_RANK[current] < 3;
+  return STATUS_RANK[incoming] > STATUS_RANK[current];
+}

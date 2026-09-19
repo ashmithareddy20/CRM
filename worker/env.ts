@@ -17,6 +17,10 @@ export interface Env {
   OIDC_AUDIENCE?: string;
   OIDC_ALLOWED_ALGORITHMS?: string;
   OIDC_JWKS_URL?: string;
+  OIDC_AUTHORIZATION_ENDPOINT?: string;
+  OIDC_TOKEN_ENDPOINT?: string;
+  OIDC_CLIENT_ID?: string;
+  OIDC_REDIRECT_URI?: string;
   CORS_ALLOWED_ORIGINS?: string;
   /** JSON object of key version to base64url 32-byte AES key. Never store this in D1. */
   FIELD_ENCRYPTION_KEYS?: string;

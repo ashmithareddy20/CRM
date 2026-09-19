@@ -10,7 +10,12 @@ const transitionSchema = z.object({ expectedVersion: z.number().int().positive()
 const rescheduleSchema = createSchema.omit({ leadId: true }).extend({ expectedVersion: z.number().int().positive() }).strict();
 const route = /^\/api\/v1\/appointments\/([^/]+)(?:\/(confirm|cancel|no-show|arrive|consultation|reschedule))?$/;
 export interface AppointmentRouteDependencies { appointments: AppointmentService; }
-function context(value: RequestContext) { if (!value.actor) throw new ApiError("AUTHENTICATION_REQUIRED", 401, "Authentication is required"); if (!value.actor.roles.some((role) => ["operations", "scheduler", "manager"].includes(role))) throw new ApiError("FORBIDDEN", 403, "Appointment management permission is required"); return { tenantId: value.actor.tenantId, actorMembershipId: value.actor.membershipId, now: value.now }; }
+function context(value: RequestContext, action?: "arrival" | "consultation" | "read") {
+  if (!value.actor) throw new ApiError("AUTHENTICATION_REQUIRED", 401, "Authentication is required");
+  const central = value.actor.roles.some((role) => ["operations", "scheduler", "manager"].includes(role));
+  if (action === "arrival" || action === "consultation" ? !value.actor.roles.includes("clinician") : !central && !(action === "read" && value.actor.roles.includes("clinician"))) throw new ApiError("FORBIDDEN", 403, "Appointment permission is required");
+  return { tenantId: value.actor.tenantId, actorMembershipId: value.actor.membershipId, roles: value.actor.roles, now: value.now };
+}
 const response = <T>(context: RequestContext, data: T, status = 200) => Response.json({ success: true, data }, { status, headers: { "X-Request-Id": context.requestId } });
 
 export async function handleAppointmentRoutes(request: Request, requestContext: RequestContext, dependencies: AppointmentRouteDependencies): Promise<Response | undefined> {
@@ -19,7 +24,7 @@ export async function handleAppointmentRoutes(request: Request, requestContext: 
   const match = path.match(route); if (!match) return undefined; const [, appointmentId, action] = match;
   if (!action) {
     if (request.method !== "GET") return methodNotAllowed(requestContext.requestId, ["GET"]);
-    const appointment = await dependencies.appointments.get(context(requestContext).tenantId, appointmentId);
+    const appointment = await dependencies.appointments.get(context(requestContext, "read").tenantId, appointmentId);
     if (!appointment) throw new ApiError("NOT_FOUND", 404, "Appointment is unavailable");
     return response(requestContext, appointment);
   }
@@ -27,6 +32,6 @@ export async function handleAppointmentRoutes(request: Request, requestContext: 
   if (request.method !== "POST") return methodNotAllowed(requestContext.requestId, ["POST"]);
   const body = parse(transitionSchema, await readJsonBody(request));
   const status = ({ confirm: "confirmed", cancel: "cancelled", "no-show": "no_show", arrive: "arrived", consultation: "consultation_completed" } as const)[action];
-  await dependencies.appointments.transition(context(requestContext), appointmentId, body.expectedVersion, status!, body.reason);
+  await dependencies.appointments.transition(context(requestContext, action === "arrive" ? "arrival" : action === "consultation" ? "consultation" : undefined), appointmentId, body.expectedVersion, status!, body.reason);
   return response(requestContext, { appointmentId, status });
 }

@@ -5,7 +5,7 @@ export interface OutboxRecord { id: string; tenantId: string; type: string; payl
 /** A failed publish leaves the durable outbox pending and is safe to sweep later. */
 export async function publishPendingOutbox(db: D1Database, queue: WorkQueue, now = new Date(), limit = 100): Promise<number> {
   const rows = await db.prepare(`SELECT id, tenant_id AS tenantId, type, payload_ciphertext AS payloadCiphertext FROM crm_transactional_outbox
-    WHERE status = 'pending' AND available_at <= ? ORDER BY available_at ASC LIMIT ?`).bind(now.getTime(), limit).all<OutboxRecord>();
+    WHERE status = 'pending' AND available_at <= ? AND (next_attempt_at IS NULL OR next_attempt_at <= ?) ORDER BY available_at ASC LIMIT ?`).bind(now.getTime(), now.getTime(), limit).all<OutboxRecord>();
   let published = 0;
   for (const row of rows.results) {
     await queue.send({ kind: "outbox", id: row.id });

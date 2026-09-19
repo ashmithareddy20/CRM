@@ -3,29 +3,29 @@ import { DatabaseSync } from "node:sqlite";
 const args = process.argv.slice(2); const take = (flag) => args[args.indexOf(flag) + 1];
 const database = take("--database"); const environment = take("--environment");
 if (!database || !["local", "staging", "production"].includes(environment)) throw new Error("Usage: node scripts/seed-backend.mjs --database <sqlite-path> --environment <local|staging|production>");
-const db = new DatabaseSync(database);
-const now = Date.now();
+const db = new DatabaseSync(database); const now = Date.now();
 const insert = (sql, values) => db.prepare(sql).run(...values);
-const tenant = environment === "production" ? "bootstrap-tenant" : "demo-tenant-a";
-const rows = [
-  ["crm_tenants", [tenant, environment === "production" ? "Bootstrap tenant" : "Synthetic Care Demo A", tenant, "Asia/Kolkata", "active", now, 1]],
-  ["crm_source_taxonomy", ["source-manual", tenant, now, 1, "manual", "Manual entry", 1]],
-  ["crm_source_taxonomy", ["source-web", tenant, now, 1, "website", "Website", 1]],
-  ["crm_lifecycle_stages", ["stage-received", tenant, now, 1, "received", "Received", 0]],
-  ["crm_lifecycle_stages", ["stage-qualified", tenant, now, 1, "qualified", "Qualified", 0]],
-  ["crm_lifecycle_reasons", ["reason-not-interested", tenant, now, 1, "not_interested", "Not interested", 1]],
-  ["crm_diseases", ["disease-general", tenant, now, 1, "general", "General inquiry", 1]],
-  ["crm_score_policies", ["score-policy-v1", tenant, now, 1, "qualification", "v1", '{"classification":"review_required"}', now]],
-  ["crm_diagnosis_versions", ["diagnosis-v1", tenant, now, 1, "loss-reasons", "v1", '{"categories":["financial","interest","follow_up_failure","hospital_doctor","competition","lead_quality","contactability"]}']],
+const primaryTenant = environment === "production" ? "bootstrap-tenant" : "demo-tenant-a";
+const tenantRows = [[primaryTenant, environment === "production" ? "Bootstrap tenant" : "Synthetic Care Demo A", primaryTenant]];
+if (environment !== "production") tenantRows.push(["demo-tenant-b", "Synthetic Care Demo B", "demo-tenant-b"]);
+const stages = [
+  ["received", "Received", false], ["source_identified", "Source identified", false], ["assigned", "Assigned", false], ["contact_attempted", "Contact attempted", false], ["meaningful_connection", "Meaningful connection", false], ["requirement_identified", "Requirement identified", false], ["qualified", "Qualified", false], ["follow_up_active", "Follow-up active", false], ["appointment_suggested", "Appointment suggested", false], ["appointment_booked", "Appointment booked", false], ["appointment_confirmed", "Appointment confirmed", false], ["arrived", "Arrived", false], ["consultation", "Consultation", false], ["treatment_advised", "Treatment advised", false], ["financial_counseling", "Financial counseling", false], ["procedure_booked", "Procedure booked", false], ["admission", "Admission", false], ["treatment_completed", "Treatment completed", false], ["revenue_recorded", "Revenue recorded", false], ["closed", "Closed", true],
 ];
-if (environment !== "production") rows.push(
-  ["crm_tenants", ["demo-tenant-b", "Synthetic Care Demo B", "demo-tenant-b", "Asia/Kolkata", "active", now, 1]],
-  ["crm_contacts", ["contact-synthetic-opt-in", tenant, now, 1, "synthetic-name", "synthetic-phone", "demo-phone-1", null, null, "active"]],
-  ["crm_lead_episodes", ["lead-synthetic-qualified", tenant, now, 1, "contact-synthetic-opt-in", "source-manual", null, null, null, "qualified", now, now, null]],
-);
-const schemas = {
-  crm_tenants: "(id,name,slug,timezone,status,created_at,version)", crm_source_taxonomy: "(id,tenant_id,created_at,version,key,label,active)", crm_lifecycle_stages: "(id,tenant_id,created_at,version,key,label,terminal)", crm_lifecycle_reasons: "(id,tenant_id,created_at,version,key,label,requires_evidence)", crm_diseases: "(id,tenant_id,created_at,version,code,name,active)", crm_score_policies: "(id,tenant_id,created_at,version,key,version_label,rules_json,effective_at)", crm_diagnosis_versions: "(id,tenant_id,created_at,version,key,version_label,definition_json)", crm_contacts: "(id,tenant_id,created_at,version,name_ciphertext,phone_ciphertext,phone_blind_index,email_ciphertext,email_blind_index,status)", crm_lead_episodes: "(id,tenant_id,created_at,version,contact_id,source_id,campaign_id,branch_id,assigned_membership_id,lifecycle_stage,received_at,generated_at,archived_reason)",
+const edges = {
+  received: ["source_identified", "assigned", "closed"], source_identified: ["assigned", "closed"], assigned: ["contact_attempted", "closed"], contact_attempted: ["contact_attempted", "meaningful_connection", "follow_up_active", "closed"], meaningful_connection: ["requirement_identified", "follow_up_active", "closed"], requirement_identified: ["qualified", "follow_up_active", "closed"], qualified: ["follow_up_active", "appointment_suggested", "closed"], follow_up_active: ["contact_attempted", "meaningful_connection", "appointment_suggested", "closed"], appointment_suggested: ["appointment_booked", "follow_up_active", "closed"], appointment_booked: ["appointment_confirmed", "follow_up_active", "closed"], appointment_confirmed: ["arrived", "follow_up_active", "closed"], arrived: ["consultation", "closed"], consultation: ["treatment_advised", "financial_counseling", "closed"], treatment_advised: ["financial_counseling", "procedure_booked", "treatment_completed", "closed"], financial_counseling: ["procedure_booked", "treatment_completed", "closed"], procedure_booked: ["admission", "treatment_completed", "closed"], admission: ["treatment_completed", "revenue_recorded", "closed"], treatment_completed: ["revenue_recorded", "closed"], revenue_recorded: ["closed"], closed: [],
 };
+const schemas = {
+  crm_tenants: "(id,name,slug,timezone,status,created_at,version)", crm_source_taxonomy: "(id,tenant_id,created_at,version,key,label,active)", crm_lifecycle_stages: "(id,tenant_id,created_at,version,key,label,terminal)", crm_lifecycle_reasons: "(id,tenant_id,created_at,version,stage_id,key,label,requires_evidence)", crm_allowed_transitions: "(id,tenant_id,created_at,version,from_stage_id,to_stage_id,policy_json)", crm_diseases: "(id,tenant_id,created_at,version,code,name,active)", crm_score_policies: "(id,tenant_id,created_at,version,key,version_label,rules_json,effective_at)", crm_diagnosis_versions: "(id,tenant_id,created_at,version,key,version_label,definition_json)", crm_contacts: "(id,tenant_id,created_at,version,name_ciphertext,phone_ciphertext,phone_blind_index,email_ciphertext,email_blind_index,status)", crm_lead_episodes: "(id,tenant_id,created_at,version,contact_id,source_id,campaign_id,branch_id,assigned_membership_id,lifecycle_stage,received_at,generated_at,archived_reason)",
+};
+const rows = [];
+for (const [tenant, name, slug] of tenantRows) {
+  rows.push(["crm_tenants", [tenant, name, slug, "Asia/Kolkata", "active", now, 1]]);
+  for (const [key, label, terminal] of stages) rows.push(["crm_lifecycle_stages", [`${tenant}:stage:${key}`, tenant, now, 1, key, label, Number(terminal)]]);
+  for (const [from, targets] of Object.entries(edges)) for (const to of targets) rows.push(["crm_allowed_transitions", [`${tenant}:transition:${from}:${to}`, tenant, now, 1, `${tenant}:stage:${from}`, `${tenant}:stage:${to}`, JSON.stringify({ active: true, bootstrap: true, effectiveAt: now })]]);
+  rows.push(["crm_lifecycle_reasons", [`${tenant}:reason:closed-other`, tenant, now, 1, `${tenant}:stage:closed`, "closed_other", "Closed: other documented reason", 1]]);
+}
+rows.push(["crm_source_taxonomy", ["source-manual", primaryTenant, now, 1, "manual", "Manual entry", 1]], ["crm_source_taxonomy", ["source-web", primaryTenant, now, 1, "website", "Website", 1]], ["crm_diseases", ["disease-general", primaryTenant, now, 1, "general", "General inquiry", 1]], ["crm_score_policies", ["score-policy-v1", primaryTenant, now, 1, "qualification", "v1", '{"classification":"review_required"}', now]], ["crm_diagnosis_versions", ["diagnosis-v1", primaryTenant, now, 1, "loss-reasons", "v1", '{"categories":["financial","interest","follow_up_failure","hospital_doctor","competition","lead_quality","contactability"]}']]);
+if (environment !== "production") rows.push(["crm_contacts", ["contact-synthetic-opt-in", primaryTenant, now, 1, "synthetic-name", "synthetic-phone", "demo-phone-1", null, null, "active"]], ["crm_lead_episodes", ["lead-synthetic-qualified", primaryTenant, now, 1, "contact-synthetic-opt-in", "source-manual", null, null, null, "qualified", now, now, null]]);
 db.exec("BEGIN");
 try { for (const [table, values] of rows) { const columns = schemas[table]; insert(`INSERT OR IGNORE INTO ${table} ${columns} VALUES (${values.map(() => "?").join(",")})`, values); } db.exec("COMMIT"); } catch (error) { db.exec("ROLLBACK"); throw error; }
-console.log(JSON.stringify({ database, environment, seeded: rows.length, syntheticPatientRecords: environment !== "production" }));
+console.log(JSON.stringify({ database, environment, seeded: rows.length, lifecycleBootstrapTenants: tenantRows.map(([id]) => id), syntheticPatientRecords: environment !== "production" }));

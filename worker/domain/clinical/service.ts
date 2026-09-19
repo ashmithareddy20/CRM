@@ -69,7 +69,7 @@ export class ClinicalService {
     const treatmentId = id();
     // The guarded insert prevents two concurrent completions of the same clinical path.
     const result = await this.db.$client.prepare("INSERT INTO crm_treatments_completed (id, tenant_id, lead_id, completion_identity, command_id, status, occurred_at, evidence_id, created_at, created_by_membership_id, version) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1 WHERE NOT EXISTS (SELECT 1 FROM crm_treatments_completed WHERE tenant_id = ? AND completion_identity = ?)")
-      .bind(treatmentId, context.tenantId, command.leadId, `${command.path}:${command.leadId}`, command.commandId ?? command.evidenceId, completion, (command.occurredAt ?? context.now).getTime(), command.evidenceId, context.now.getTime(), context.actorMembershipId, context.tenantId, `${command.path}:${command.leadId}`).run();
+      .bind(treatmentId, context.tenantId, command.leadId, completionIdentity(command), command.commandId ?? command.evidenceId, completion, (command.occurredAt ?? context.now).getTime(), command.evidenceId, context.now.getTime(), context.actorMembershipId, context.tenantId, completionIdentity(command)).run();
     if (result.meta.changes) return { treatmentId, created: true };
     const duplicate = await this.db.select({ id: treatmentsCompleted.id, evidenceId: treatmentsCompleted.evidenceId }).from(treatmentsCompleted).where(and(eq(treatmentsCompleted.tenantId, context.tenantId), eq(treatmentsCompleted.leadId, command.leadId), eq(treatmentsCompleted.status, completion))).get();
     if (duplicate?.evidenceId === command.evidenceId) return { treatmentId: duplicate.id, created: false };
@@ -90,5 +90,8 @@ export class ClinicalService {
     const record = await this.db.select({ id: clinicalDecisions.id }).from(clinicalDecisions).where(and(eq(clinicalDecisions.tenantId, tenantId), eq(clinicalDecisions.id, decisionId), eq(clinicalDecisions.leadId, leadId), eq(clinicalDecisions.decision, decision))).get();
     if (!record) throw new ApiError("CONFLICT", 409, "The specified clinician decision is missing or stale");
   }
+}
+function completionIdentity(command: { path: "surgical" | "medical_management"; admissionId?: string; decisionId?: string }): string {
+  return command.path === "surgical" ? `admission:${command.admissionId}` : `decision:${command.decisionId}`;
 }
 function requireEvidence(evidenceId: string): void { if (!evidenceId?.trim()) throw new ApiError("VALIDATION_FAILED", 422, "Request validation failed", { evidenceId: "Evidence is required" }); }

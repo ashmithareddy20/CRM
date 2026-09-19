@@ -75,3 +75,18 @@ describe("diagnosis/recovery review regressions", () => {
     expect(repository.touches).toEqual(expect.arrayContaining([expect.objectContaining({ enrollmentId: enrollment.id, purpose: "recovery:interest", requestedChannel: "whatsapp" }), expect.objectContaining({ enrollmentId: enrollment.id, purpose: "recovery:interest", requestedChannel: "rich" })]));
   });
 });
+
+describe("D1 recovery consent exclusion query", () => {
+  it("uses latest global/channel consent and suppression rows rather than historical withdrawal/DNC rows", async () => {
+    const { D1RecoveryRepository } = await import("../../../worker/domain/recovery/service");
+    let query = "";
+    const db = { prepare(sql: string) { query = sql; return { bind() { return { first: async () => undefined }; } }; } } as unknown as D1Database;
+    await new D1RecoveryRepository(db).getLeadState("tenant-1", "lead-1");
+    expect(query).toContain("ce.channel IS NULL");
+    expect(query).toContain("latest.purpose = ce.purpose");
+    expect(query).toContain("latest.channel = ce.channel");
+    expect(query).toContain("s.channel IS NULL");
+    expect(query).toContain("latest.channel = s.channel");
+    expect(query).not.toContain("ce.contact_id = l.contact_id AND ce.state IN ('withdrawn', 'denied')");
+  });
+});

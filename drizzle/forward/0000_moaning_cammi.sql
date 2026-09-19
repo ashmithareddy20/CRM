@@ -1125,7 +1125,7 @@ CREATE TABLE `crm_slot_reservations` (
 	`status` text DEFAULT 'active' NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `crm_slot_occupied_uq` ON `crm_slot_reservations` (`tenant_id`,`doctor_id`,`branch_id`,`slot_start_at`,`status`);--> statement-breakpoint
+CREATE UNIQUE INDEX `crm_slot_active_occupancy_uq` ON `crm_slot_reservations` (`tenant_id`,`doctor_id`,`branch_id`,`slot_start_at`) WHERE `status` = 'active';--> statement-breakpoint
 CREATE TABLE `crm_admissions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tenant_id` text NOT NULL,

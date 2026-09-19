@@ -106,3 +106,33 @@ describe("consent and delivery review regressions", () => {
     expect((await repo.getAttempt("tenant-1", result.attempt.id))?.status).toBe("accepted");
   });
 });
+
+describe("scope and receipt ordering regressions", () => {
+  it("does not let a global grant override a channel-specific withdrawal", async () => {
+    const repo = new MemoryConsentRepository(); const service = new ConsentService(repo, { verifyOwnedEvidence: async () => true });
+    const actor = { tenantId: "tenant-1", actorMembershipId: "agent", roles: ["agent"], now: start };
+    await service.record(actor, { contactId: "contact-1", purpose: "education", channel: "whatsapp", state: "withdrawn", occurredAt: start, evidenceId: "withdrawn" });
+    await service.record({ ...actor, now: new Date(start.getTime() + 1) }, { contactId: "contact-1", purpose: "education", state: "granted", occurredAt: new Date(start.getTime() + 1), evidenceId: "global-grant" });
+    expect(await service.evaluate("tenant-1", "contact-1", "education", "whatsapp", new Date(start.getTime() + 2))).toMatchObject({ allowed: false, reason: "withdrawn" });
+    await service.record({ ...actor, now: new Date(start.getTime() + 3) }, { contactId: "contact-1", purpose: "education", channel: "whatsapp", state: "granted", occurredAt: new Date(start.getTime() + 3), evidenceId: "channel-grant" });
+    expect(await service.evaluate("tenant-1", "contact-1", "education", "whatsapp", new Date(start.getTime() + 4))).toEqual({ allowed: true });
+  });
+  it("alternates only within its journey and permits an evidenced single-channel fallback after cadence", async () => {
+    const { service } = await setup(); const provider = new SimulatedProviderAdapter();
+    expect((await service.dispatch({ ...input(provider), journeyId: "journey-a" })).state).toBe("accepted");
+    const otherJourney = await service.dispatch({ ...input(provider, new Date(start.getTime() + MIN_OUTBOUND_INTERVAL_MS), "touch-b"), journeyId: "journey-b", templateVersion: { ...version, id: "other", contentHash: "other" } });
+    expect(otherJourney.state).toBe("accepted");
+    const unavailableRich = new SimulatedProviderAdapter({ channels: ["whatsapp"] });
+    const fallback = await service.dispatch({ ...input(unavailableRich, new Date(start.getTime() + 2 * MIN_OUTBOUND_INTERVAL_MS), "touch-c"), journeyId: "journey-b", requestedChannel: "rich", singleChannelFallback: { channel: "whatsapp", reason: "RCS/MMS unavailable for this contact" }, templateVersion: { ...version, id: "fallback", contentHash: "fallback" } });
+    expect(fallback).toMatchObject({ state: "accepted", attempt: { requestedChannel: "rich", channel: "whatsapp", fallbackReason: "RCS/MMS unavailable for this contact" } });
+  });
+  it("retains stale provider receipts but never regresses delivered/read state", async () => {
+    const { service, repo } = await setup(); const provider = new SimulatedProviderAdapter(); const result = await service.dispatch(input(provider));
+    await service.recordEvent({ tenantId: "tenant-1", attemptId: result.attempt.id, providerEventId: "delivered", type: "delivered", occurredAt: start });
+    await service.recordEvent({ tenantId: "tenant-1", attemptId: result.attempt.id, providerEventId: "late-sent", type: "sent", occurredAt: new Date(start.getTime() + 1) });
+    await service.recordEvent({ tenantId: "tenant-1", attemptId: result.attempt.id, providerEventId: "read", type: "read", occurredAt: new Date(start.getTime() + 2) });
+    await service.recordEvent({ tenantId: "tenant-1", attemptId: result.attempt.id, providerEventId: "late-failed", type: "failed", occurredAt: new Date(start.getTime() + 3) });
+    expect(repo.events).toHaveLength(4);
+    expect((await repo.getAttempt("tenant-1", result.attempt.id))?.status).toBe("read");
+  });
+});

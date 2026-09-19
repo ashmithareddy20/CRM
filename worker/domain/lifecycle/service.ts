@@ -44,7 +44,8 @@ export class LifecycleService {
     await this.validateEvidenceAndReason(context, command);
     await this.requireNoPendingRemarks(context.tenantId, leadId, command.toStage);
     if (["follow_up_active", "appointment_suggested"].includes(command.toStage) && !command.nextAction) throw new ApiError("VALIDATION_FAILED", 422, "Request validation failed", { nextAction: "A next action commitment is required" });
-    if (["treatment_completed", "revenue_recorded", "closed"].includes(command.toStage)) await this.requireDiagnosis(context.tenantId, leadId);
+    // A clinical completion/revenue milestone is a normal success path. Diagnosis evidence is reserved for a loss/closed outcome.
+    if (command.toStage === "closed") await this.requireDiagnosis(context.tenantId, leadId);
 
     const transitionId = id(); const now = context.now.getTime();
     const update = this.db.prepare("UPDATE crm_lead_episodes SET lifecycle_stage = ?, version = version + 1, updated_at = ?, updated_by_membership_id = ? WHERE tenant_id = ? AND id = ? AND version = ? AND archived_at IS NULL")
@@ -64,12 +65,19 @@ export class LifecycleService {
 
   private async requireNoPendingRemarks(tenantId: string, leadId: string, toStage: LifecycleStage) {
     if (["received", "source_identified", "assigned", "contact_attempted"].includes(toStage)) return;
-    const pending = await this.db.prepare("SELECT id FROM crm_call_attempts WHERE tenant_id = ? AND lead_id = ? AND disposition = 'remark_pending' LIMIT 1").bind(tenantId, leadId).first();
+    const pending = await this.db.prepare("SELECT id FROM crm_tasks WHERE tenant_id = ? AND lead_id = ? AND status = 'open' AND title LIKE 'Complete mandatory call remarks:%' LIMIT 1").bind(tenantId, leadId).first();
     if (pending) throw new ApiError("CONFLICT", 409, "Complete pending mandatory call remarks before progressing this lead");
   }
   private async validateConfiguredTransition(context: LifecycleContext, from: LifecycleStage, to: LifecycleStage) {
-    const row = await this.db.prepare("SELECT t.policy_json AS policyJson FROM crm_allowed_transitions t JOIN crm_lifecycle_stages f ON f.tenant_id = t.tenant_id AND f.id = t.from_stage_id JOIN crm_lifecycle_stages n ON n.tenant_id = t.tenant_id AND n.id = t.to_stage_id WHERE t.tenant_id = ? AND f.key = ? AND n.key = ? ORDER BY t.version DESC LIMIT 1").bind(context.tenantId, from, to).first<{ policyJson: string }>();
-    if (!row || !policyAllows(row.policyJson, context.now)) throw new ApiError("VALIDATION_FAILED", 422, "This lifecycle transition is not enabled by the current policy", { toStage: "No active configured transition permits this change" });
+    const row = await this.db.prepare("SELECT t.policy_json AS policyJson FROM crm_allowed_transitions t JOIN crm_lifecycle_stages f ON f.tenant_id = t.tenant_id AND f.id = t.from_stage_id JOIN crm_lifecycle_stages n ON n.tenant_id = t.tenant_id AND n.id = t.to_stage_id WHERE t.tenant_id = ? AND f.key = ? AND n.key = ? ORDER BY t.created_at DESC, t.id DESC LIMIT 1").bind(context.tenantId, from, to).first<{ policyJson: string }>();
+    if (row) {
+      if (!policyAllows(row.policyJson, context.now)) throw new ApiError("VALIDATION_FAILED", 422, "This lifecycle transition is not enabled by the current policy", { toStage: "The configured transition is not active" });
+      return;
+    }
+    // Bootstrap tenants do not become unusable before their versioned dictionary is installed.
+    // As soon as a tenant configures a specific edge, that policy is authoritative for the edge.
+    const configuredTransition = await this.db.prepare("SELECT id FROM crm_allowed_transitions WHERE tenant_id = ? LIMIT 1").bind(context.tenantId).first();
+    if (configuredTransition || !isLegalLifecycleTransition(from, to)) throw new ApiError("VALIDATION_FAILED", 422, "This lifecycle transition is not enabled by the current policy", { toStage: "No active configured transition permits this change" });
   }
   private async validateEvidenceAndReason(context: LifecycleContext, command: TransitionCommand) {
     const evidenceRequired = ["meaningful_connection", "requirement_identified", "qualified", "appointment_booked", "consultation", "treatment_advised", "financial_counseling", "procedure_booked", "treatment_completed", "revenue_recorded"].includes(command.toStage);

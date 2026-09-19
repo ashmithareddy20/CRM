@@ -21,7 +21,7 @@ export class TaskService {
     if (!context.roles.some((role) => ["agent", "manager", "operations", "scheduler", "clinician", "financial_counselor"].includes(role))) throw new ApiError("FORBIDDEN", 403, "You are not permitted to create tasks");
     const input = taskCreateSchema.parse(rawInput); const taskId = id(); const now = context.now.getTime();
     if (input.leadId) {
-      const pending = await this.db.prepare("SELECT id FROM crm_call_attempts WHERE tenant_id = ? AND lead_id = ? AND disposition = 'remark_pending' LIMIT 1").bind(context.tenantId, input.leadId).first();
+      const pending = await this.db.prepare("SELECT id FROM crm_tasks WHERE tenant_id = ? AND lead_id = ? AND status = 'open' AND title LIKE 'Complete mandatory call remarks:%' LIMIT 1").bind(context.tenantId, input.leadId).first();
       if (pending) throw new ApiError("CONFLICT", 409, "Complete pending mandatory call remarks before creating new lead work");
     }
     const task = { id: taskId, tenantId: context.tenantId, leadId: input.leadId ?? null, assigneeMembershipId: input.assigneeMembershipId ?? context.actorMembershipId, title: input.title, dueAt: input.dueAt.getTime(), priority: input.priority, createdAt: now, createdByMembershipId: context.actorMembershipId };

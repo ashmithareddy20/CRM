@@ -7432,16 +7432,16 @@
         }
       },
       "indexes": {
-        "crm_slot_occupied_uq": {
-          "name": "crm_slot_occupied_uq",
+        "crm_slot_active_occupancy_uq": {
+          "name": "crm_slot_active_occupancy_uq",
           "columns": [
             "tenant_id",
             "doctor_id",
             "branch_id",
-            "slot_start_at",
-            "status"
+            "slot_start_at"
           ],
-          "isUnique": true
+          "isUnique": true,
+          "where": "`status` = 'active'"
         }
       },
       "foreignKeys": {},

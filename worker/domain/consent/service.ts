@@ -45,8 +45,12 @@ export class ConsentService {
     const globalSuppression = suppressions.filter((item) => !item.channel).sort(orderNewest)[0];
     const channelSuppression = suppressions.filter((item) => item.channel === channel).sort(orderNewest)[0];
     if (globalSuppression?.active || channelSuppression?.active) return { allowed: false, reason: "suppressed" };
-    const events = (await this.repository.listEvents(tenantId, contactId, purpose, channel)).filter((event) => event.occurredAt <= now).sort(orderNewest);
-    const latest = events[0];
+    const events = (await this.repository.listEvents(tenantId, contactId, purpose, channel)).filter((event) => event.occurredAt <= now);
+    const globalEvent = events.filter((event) => !event.channel).sort(orderNewest)[0];
+    const channelEvent = events.filter((event) => event.channel === channel).sort(orderNewest)[0];
+    // A channel-specific withdrawal/denial is never revived by a later global grant. A new channel grant is required.
+    if (channelEvent && (channelEvent.state === "withdrawn" || channelEvent.state === "denied")) return { allowed: false, reason: channelEvent.state };
+    const latest = [globalEvent, channelEvent].filter((event): event is ConsentEvent => Boolean(event)).sort(orderNewest)[0];
     if (!latest || latest.state === "unknown") return { allowed: false, reason: "unknown" };
     if (latest.state === "withdrawn" || latest.state === "denied") return { allowed: false, reason: latest.state };
     if (latest.expiresAt && latest.expiresAt <= now) return { allowed: false, reason: "expired" };

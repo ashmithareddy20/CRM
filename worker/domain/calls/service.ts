@@ -6,6 +6,9 @@ export interface CallContext { tenantId: string; actorMembershipId: string; now:
 export interface CallProtector { encrypt(tenantId: string, recordId: string, purpose: string, value: string): Promise<string>; }
 export interface PairingStore { previousAttempt(tenantId: string, leadId: string, pairId: string): Promise<{ dialedAt: Date } | undefined>; reserve(tenantId: string, leadId: string, pairId: string, callAttemptId: string, dialedAt: Date): Promise<boolean>; }
 export const MINIMUM_DOUBLE_DIAL_INTERVAL_MS = 15 * 60_000;
+export function isEligibleSecondPairedAttempt(previous: Date | undefined, proposed: Date): boolean {
+  return Boolean(previous && proposed.getTime() - previous.getTime() >= MINIMUM_DOUBLE_DIAL_INTERVAL_MS);
+}
 
 /** Durable adapter for the existing outbox store. Pair records are opaque IDs/timestamps only. */
 export class D1PairingStore implements PairingStore {
@@ -38,17 +41,18 @@ export class CallService {
     if (!context.roles.some((role) => ["agent", "manager", "operations", "tenant_administrator", "integration_principal"].includes(role))) throw new ApiError("FORBIDDEN", 403, "You are not permitted to record a call attempt");
     const lead = await this.db.prepare("SELECT id FROM crm_lead_episodes WHERE tenant_id = ? AND id = ? AND archived_at IS NULL").bind(context.tenantId, input.leadId).first();
     if (!lead) throw new ApiError("NOT_FOUND", 404, "Lead is unavailable");
-    await this.requireNoPendingRemark(context.tenantId, input.leadId);
     const dialedAt = input.dialedAt ?? context.now;
+    await this.requireNoPendingRemark(context.tenantId, input.leadId, input.pairId, dialedAt);
     if (input.pairId) {
       const previous = await this.pairing.previousAttempt(context.tenantId, input.leadId, input.pairId);
-      if (previous && dialedAt.getTime() - previous.dialedAt.getTime() < MINIMUM_DOUBLE_DIAL_INTERVAL_MS) throw new ApiError("VALIDATION_FAILED", 422, "Request validation failed", { pairId: "Double-dial attempts must use the configured minimum interval" });
+      if (previous && !isEligibleSecondPairedAttempt(previous.dialedAt, dialedAt)) throw new ApiError("VALIDATION_FAILED", 422, "Request validation failed", { pairId: "Double-dial attempts must use the configured minimum interval" });
     }
     const callAttemptId = id();
     if (input.pairId && !await this.pairing.reserve(context.tenantId, input.leadId, input.pairId, callAttemptId, dialedAt)) throw new ApiError("CONFLICT", 409, "Double-dial pair was changed by another request");
-    // Provider disposition is an observation only; all new attempts remain remark_pending until an accountable person completes structured remarks.
-    const result = await this.db.prepare("INSERT OR IGNORE INTO crm_call_attempts (id, tenant_id, lead_id, membership_id, provider, external_id, direction, disposition, dialed_at, connected_at, ended_at, created_at, created_by_membership_id, version) VALUES (?, ?, ?, ?, ?, ?, ?, 'remark_pending', ?, ?, ?, ?, ?, 1)")
-      .bind(callAttemptId, context.tenantId, input.leadId, context.actorMembershipId, input.provider ?? null, input.externalId ?? null, input.direction, dialedAt.getTime(), input.connectedAt?.getTime() ?? null, input.endedAt?.getTime() ?? null, context.now.getTime(), context.actorMembershipId).run();
+    // The agent's supplied granular disposition is persisted, but it never permits progress without its structured remark task.
+    const initialDisposition = input.disposition === "pending" ? "remark_pending" : input.disposition;
+    const result = await this.db.prepare("INSERT OR IGNORE INTO crm_call_attempts (id, tenant_id, lead_id, membership_id, provider, external_id, direction, disposition, dialed_at, connected_at, ended_at, created_at, created_by_membership_id, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)")
+      .bind(callAttemptId, context.tenantId, input.leadId, context.actorMembershipId, input.provider ?? null, input.externalId ?? null, input.direction, initialDisposition, dialedAt.getTime(), input.connectedAt?.getTime() ?? null, input.endedAt?.getTime() ?? null, context.now.getTime(), context.actorMembershipId).run();
     if (!result.meta.changes) {
       const existing = await this.db.prepare("SELECT id, disposition FROM crm_call_attempts WHERE tenant_id = ? AND provider = ? AND external_id = ?").bind(context.tenantId, input.provider, input.externalId).first<{ id: string; disposition: string }>();
       return { callAttemptId: existing?.id, duplicate: true, remarkPending: existing?.disposition === "remark_pending" };
@@ -59,7 +63,7 @@ export class CallService {
       this.db.prepare("INSERT INTO crm_transactional_outbox (id, tenant_id, operation_key, type, payload_ciphertext, status, available_at, created_at, created_by_membership_id, version) VALUES (?, ?, ?, 'call.attempt_recorded', ?, 'pending', ?, ?, ?, 1)")
         .bind(id(), context.tenantId, `call:${callAttemptId}`, JSON.stringify({ callAttemptId }), context.now.getTime(), context.now.getTime(), context.actorMembershipId),
     ]);
-    return { callAttemptId, duplicate: false, remarkPending: true, pairId: input.pairId };
+    return { callAttemptId, duplicate: false, remarkPending: true, disposition: initialDisposition, pairId: input.pairId };
   }
 
   /** Provider events update the addressed attempt; they never create an unrelated attempt or claim meaningful contact. */
@@ -69,8 +73,8 @@ export class CallService {
     if (!attempt) throw new ApiError("NOT_FOUND", 404, "Call attempt is unavailable");
     if (input.provider && attempt.provider && input.provider !== attempt.provider) throw new ApiError("CONFLICT", 409, "Provider event does not match this call attempt");
     if (input.externalId && attempt.externalId && input.externalId !== attempt.externalId) throw new ApiError("CONFLICT", 409, "Provider event does not match this call attempt");
-    // Provider telemetry can improve timestamps and granular failure status, but a human remark remains mandatory.
-    const providerDisposition = attempt.disposition === "remark_pending" ? "remark_pending" : attempt.disposition;
+    // Provider telemetry updates granular operational disposition, while the independent open remark task still blocks progress.
+    const providerDisposition = input.disposition === "pending" ? attempt.disposition : input.disposition;
     await this.db.prepare("UPDATE crm_call_attempts SET provider = COALESCE(?, provider), external_id = COALESCE(?, external_id), disposition = ?, dialed_at = COALESCE(?, dialed_at), connected_at = COALESCE(?, connected_at), ended_at = COALESCE(?, ended_at), updated_at = ?, updated_by_membership_id = ?, version = version + 1 WHERE tenant_id = ? AND id = ?")
       .bind(input.provider ?? null, input.externalId ?? null, providerDisposition, input.dialedAt?.getTime() ?? null, input.connectedAt?.getTime() ?? null, input.endedAt?.getTime() ?? null, context.now.getTime(), context.actorMembershipId, context.tenantId, callAttemptId).run();
     return { callAttemptId, remarkPending: providerDisposition === "remark_pending" };
@@ -79,15 +83,15 @@ export class CallService {
   async completeRemark(context: CallContext, callAttemptId: string, rawInput: z.input<typeof callRemarkSchema>) {
     if (!context.roles.some((role) => ["agent", "manager", "clinician"].includes(role))) throw new ApiError("FORBIDDEN", 403, "You are not permitted to complete call remarks");
     const input = callRemarkSchema.parse(rawInput);
-    const attempt = await this.db.prepare("SELECT lead_id AS leadId, disposition FROM crm_call_attempts WHERE tenant_id = ? AND id = ?").bind(context.tenantId, callAttemptId).first<{ leadId: string; disposition: string }>();
+    const attempt = await this.db.prepare("SELECT lead_id AS leadId FROM crm_call_attempts WHERE tenant_id = ? AND id = ?").bind(context.tenantId, callAttemptId).first<{ leadId: string }>();
     if (!attempt) throw new ApiError("NOT_FOUND", 404, "Call attempt is unavailable");
-    if (attempt.disposition !== "remark_pending" && !context.roles.includes("manager")) throw new ApiError("FORBIDDEN", 403, "Only a manager may amend an already completed call remark");
     const remarkId = id(); const now = context.now.getTime();
     const [patientStatementCiphertext, agentExplanationCiphertext] = await Promise.all([
       input.patientStatement ? this.protector.encrypt(context.tenantId, remarkId, "call-patient-statement", input.patientStatement) : Promise.resolve(null),
       input.agentExplanation ? this.protector.encrypt(context.tenantId, remarkId, "call-agent-explanation", input.agentExplanation) : Promise.resolve(null),
     ]);
     const existing = await this.db.prepare("SELECT id FROM crm_call_remarks WHERE tenant_id = ? AND call_attempt_id = ?").bind(context.tenantId, callAttemptId).first<{ id: string }>();
+    if (existing && !context.roles.includes("manager")) throw new ApiError("FORBIDDEN", 403, "Only a manager may amend an already completed call remark");
     const detail = JSON.stringify({ disposition: input.disposition, objection: input.objection, materialShared: input.materialShared, nextAction: input.nextAction, nextActionOwnerMembershipId: input.nextActionOwnerMembershipId, nextActionDueAt: input.nextActionDueAt?.toISOString(), notApplicableReason: input.notApplicableReason });
     const detailCiphertext = await this.protector.encrypt(context.tenantId, existing?.id ?? remarkId, "call-remark-detail", detail);
     const writes: D1PreparedStatement[] = [
@@ -105,8 +109,14 @@ export class CallService {
     return { callAttemptId, remarkId: existing?.id ?? remarkId, meaningfulContact: input.disposition === "meaningful_connection", amended: Boolean(existing) };
   }
 
-  private async requireNoPendingRemark(tenantId: string, leadId: string) {
-    const pending = await this.db.prepare("SELECT id FROM crm_call_attempts WHERE tenant_id = ? AND lead_id = ? AND disposition = 'remark_pending' LIMIT 1").bind(tenantId, leadId).first();
-    if (pending) throw new ApiError("CONFLICT", 409, "Complete pending mandatory call remarks before recording another call attempt");
+  private async requireNoPendingRemark(tenantId: string, leadId: string, pairId?: string, dialedAt?: Date) {
+    const pending = await this.db.prepare("SELECT id FROM crm_tasks WHERE tenant_id = ? AND lead_id = ? AND status = 'open' AND title LIKE 'Complete mandatory call remarks:%' LIMIT 1").bind(tenantId, leadId).first();
+    if (!pending) return;
+    // The prescribed second leg of an already-reserved double-dial pair is the sole exception.
+    if (pairId && dialedAt) {
+      const previous = await this.pairing.previousAttempt(tenantId, leadId, pairId);
+      if (isEligibleSecondPairedAttempt(previous?.dialedAt, dialedAt)) return;
+    }
+    throw new ApiError("CONFLICT", 409, "Complete pending mandatory call remarks before recording unrelated call work");
   }
 }

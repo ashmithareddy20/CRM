@@ -100,15 +100,81 @@ export class ApiClient {
     return { items: Array.isArray(response) ? response : response.items };
   }
 
-  me(): Promise<AuthenticatedMembership> { return this.request("/api/v1/me"); }
-  logout(): Promise<{ loggedOut: boolean }> { return this.request("/api/v1/auth/logout", { method: "POST", idempotencyKey: newIdempotencyKey("logout") }); }
-  leads(cursor?: string, limit = 25): Promise<ApiList<LeadSummary>> {
+  me(): Promise<AuthenticatedMembership> { return this.request("/api/auth/me").catch(() => this.request("/api/v1/me")); }
+  logout(): Promise<{ loggedOut: boolean }> { return this.request("/api/auth/logout", { method: "POST", idempotencyKey: newIdempotencyKey("logout") }).catch(() => this.request("/api/v1/auth/logout", { method: "POST", idempotencyKey: newIdempotencyKey("logout") })); }
+  async leads(cursor?: string, limit = 25): Promise<ApiList<LeadSummary>> {
     const params = new URLSearchParams({ limit: String(limit), ...(cursor ? { cursor } : {}) });
-    return this.list(`/api/v1/leads?${params}`);
+    try {
+      const res = await this.request<any>(`/api/leads?${params}`);
+      const items = Array.isArray(res) ? res : res?.data || res?.items || [];
+      return { items };
+    } catch {
+      return this.list(`/api/v1/leads?${params}`);
+    }
   }
   sources(): Promise<ApiList<SourceOption>> { return this.list("/api/v1/sources"); }
-  createLead(input: LeadCreateInput, idempotencyKey = newIdempotencyKey("lead")): Promise<LeadSummary> {
-    return this.request("/api/v1/leads", { method: "POST", body: input, idempotencyKey });
+  async createLead(input: LeadCreateInput, idempotencyKey = newIdempotencyKey("lead")): Promise<LeadSummary> {
+    try {
+      const res = await this.request<any>("/api/leads", {
+        method: "POST",
+        body: {
+          name: input.name,
+          phone: input.phone,
+          email: input.email,
+          source: input.sourceId || input.origin || "manual",
+          status: "new",
+          ownerId: "agent-1",
+        },
+        idempotencyKey,
+      });
+      return (res?.data || res) as LeadSummary;
+    } catch {
+      return this.request("/api/v1/leads", { method: "POST", body: input, idempotencyKey });
+    }
+  }
+  async leadTimeline(leadId: string): Promise<any[]> {
+    const res = await this.request<any>(`/api/leads/${encodeURIComponent(leadId)}/timeline`);
+    return res?.data || res || [];
+  }
+  async tasks(params?: { leadId?: string; assigneeId?: string; status?: string }): Promise<any[]> {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await this.request<any>(`/api/tasks${query ? `?${query}` : ""}`);
+    return res?.data || res || [];
+  }
+  async appointments(params?: { leadId?: string; status?: string }): Promise<any[]> {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await this.request<any>(`/api/appointments${query ? `?${query}` : ""}`);
+    return res?.data || res || [];
+  }
+  async reviews(params?: { leadId?: string; status?: string }): Promise<any[]> {
+    const query = new URLSearchParams(params as Record<string, string>).toString();
+    const res = await this.request<any>(`/api/reviews${query ? `?${query}` : ""}`);
+    return res?.data || res || [];
+  }
+  async approveReview(reviewId: string, reviewedBy = "Sravani"): Promise<any> {
+    return this.request(`/api/reviews/${encodeURIComponent(reviewId)}/approve`, { method: "POST", body: { reviewedBy } });
+  }
+  async rejectReview(reviewId: string, reviewedBy = "Sravani"): Promise<any> {
+    return this.request(`/api/reviews/${encodeURIComponent(reviewId)}/reject`, { method: "POST", body: { reviewedBy } });
+  }
+  async analyticsFunnel(): Promise<any> {
+    const res = await this.request<any>("/api/analytics/funnel");
+    return res?.data || res;
+  }
+  async analyticsAgeing(): Promise<any> {
+    const res = await this.request<any>("/api/analytics/ageing");
+    return res?.data || res;
+  }
+  async analyticsCockpit(): Promise<any> {
+    const res = await this.request<any>("/api/analytics/cockpit");
+    return res?.data || res;
+  }
+  async analyticsExecutive(): Promise<any> {
+    const res = await this.request<any>("/api/analytics/executive");
+    return res?.data || res;
+  }
+  async dialCall(leadId: string, phone?: string, agentId = "agent-1"): Promise<any> {
+    return this.request("/api/calls/dial", { method: "POST", body: { leadId, phone, agentId } });
   }
   recordCall(input: CallAttemptInput, idempotencyKey = newIdempotencyKey("call")): Promise<{ callAttemptId: string }> {
     return this.request("/api/v1/calls", { method: "POST", body: input, idempotencyKey });

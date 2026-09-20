@@ -7,6 +7,15 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
+  configPath: "./wrangler.jsonc",
+  d1_databases: [
+    {
+      binding: "DB",
+      database_name: "site-creator-d1",
+      database_id: "4aaf150c-846b-4765-aaee-eaa994309811",
+      migrations_dir: "drizzle",
+    },
+  ],
 };
 
 export default defineConfig(async () => {

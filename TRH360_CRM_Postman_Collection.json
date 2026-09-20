@@ -1,276 +1,406 @@
 {
   "info": {
-    "_postman_id": "trh360-crm-api-collection-2026",
-    "name": "TRH360 CRM \u2014 authenticated v1 API",
-    "description": "Canonical authenticated /api/v1 contract. Configure an HTTPS API origin, bearer test token only in non-production, and a tenant ID only when supported by the identity provider. Calls and remarks use real lead and membership IDs returned by the service; no client-supplied owner or role is trusted.",
+    "_postman_id": "trh360-crm-complete-backend-2026",
+    "name": "TRH360 CRM — Complete Production Backend API",
+    "description": "Comprehensive API collection for TRH360 Human + AI CRM covering Leads, Lead 360, Calls, Click-to-Call Dialer, Notes, Tasks, Appointments, AI Reviews with Human Confirmation, Messages, Analytics, Auth, and Audit.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://crm.example.com",
-      "type": "string"
-    },
-    {
-      "key": "accessToken",
-      "value": "",
+      "value": "http://127.0.0.1:5173",
       "type": "string"
     },
     {
       "key": "leadId",
-      "value": "",
+      "value": "TRH-24190",
       "type": "string"
     },
     {
-      "key": "callAttemptId",
-      "value": "",
+      "key": "reviewId",
+      "value": "REV-001",
       "type": "string"
     },
     {
-      "key": "sourceId",
-      "value": "",
+      "key": "taskId",
+      "value": "TASK-001",
       "type": "string"
     },
     {
-      "key": "membershipId",
-      "value": "",
+      "key": "appointmentId",
+      "value": "APPT-001",
       "type": "string"
     }
   ],
   "item": [
     {
-      "name": "Health and authenticated workspace",
+      "name": "1. System & Health",
       "item": [
         {
-          "name": "Health",
+          "name": "Health Check",
           "request": {
             "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "health"
-              ]
+            "url": { "raw": "{{baseUrl}}/api/health", "host": ["{{baseUrl}}"], "path": ["api", "health"] },
+            "description": "Liveness check confirming server and database status."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"sravani@crm.example\",\n  \"password\": \"demoPassword123\"\n}"
             },
-            "description": "Liveness only; no credentials required."
-          },
-          "response": []
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] },
+            "description": "Authenticates user and returns session token and permissions."
+          }
         },
         {
-          "name": "Current membership",
+          "name": "Current User Profile (Me)",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "me"
-              ]
-            },
-            "description": "Returns the authenticated tenant, membership, server-derived roles, and capabilities."
-          },
-          "response": []
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] },
+            "description": "Returns active user context, role, and capabilities."
+          }
         },
         {
           "name": "Logout",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/logout",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "auth",
-                "logout"
-              ]
-            },
-            "description": "Ends the browser session. Native clients discard their securely stored bearer token after success."
-          },
-          "response": []
+            "url": { "raw": "{{baseUrl}}/api/auth/logout", "host": ["{{baseUrl}}"], "path": ["api", "auth", "logout"] },
+            "description": "Terminates active session."
+          }
         }
       ]
     },
     {
-      "name": "Leads",
+      "name": "3. Leads & Lead 360",
       "item": [
         {
-          "name": "List leads",
+          "name": "List Leads",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/leads?limit=25",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "leads?limit=25"
-              ]
-            },
-            "description": "Tenant-scoped paginated lead summaries. Use returned IDs; do not manufacture owner, score, city, or clinical facts."
-          },
-          "response": []
+            "url": { "raw": "{{baseUrl}}/api/leads", "host": ["{{baseUrl}}"], "path": ["api", "leads"] },
+            "description": "Retrieves all leads ordered by latest first with search/status filters."
+          }
         },
         {
-          "name": "Create lead",
+          "name": "Create Lead (Add Lead Form)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "lead:{{guid}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/leads",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "leads"
-              ]
-            },
-            "description": "Requires a source ID and source provenance. Reuse the same idempotency key after an uncertain network outcome.",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Example\",\n  \"phone\": \"+919999999999\",\n  \"sourceId\": \"{{sourceId}}\",\n  \"platform\": \"postman\",\n  \"origin\": \"manual\"\n}"
-            }
-          },
-          "response": []
+              "raw": "{\n  \"name\": \"Ravi Varma\",\n  \"phone\": \"+91 98480 12345\",\n  \"email\": \"ravi.varma@example.com\",\n  \"source\": \"Google Search · Enterprise\",\n  \"status\": \"new\",\n  \"ownerId\": \"agent-1\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/leads", "host": ["{{baseUrl}}"], "path": ["api", "leads"] },
+            "description": "Persists a new lead and creates an audit log entry."
+          }
+        },
+        {
+          "name": "Get Lead 360 (Lead + Child Relations)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/leads/{{leadId}}", "host": ["{{baseUrl}}"], "path": ["api", "leads", "{{leadId}}"] },
+            "description": "Returns full Lead 360 view including calls, notes, tasks, appointments, reviews, and messages."
+          }
+        },
+        {
+          "name": "Get Lead Journey Timeline",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/leads/{{leadId}}/timeline", "host": ["{{baseUrl}}"], "path": ["api", "leads", "{{leadId}}", "timeline"] },
+            "description": "Unified chronological journey stream across all channels."
+          }
+        },
+        {
+          "name": "Update Lead",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"qualified\",\n  \"ownerId\": \"Sravani\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/leads/{{leadId}}", "host": ["{{baseUrl}}"], "path": ["api", "leads", "{{leadId}}"] }
+          }
         }
       ]
     },
     {
-      "name": "Calls and mandatory structured remarks",
+      "name": "4. Calls & Dialer",
       "item": [
         {
-          "name": "Record call attempt",
+          "name": "List Calls",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "call:{{guid}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/calls",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "calls"
-              ]
-            },
-            "description": "Creates a call attempt for the selected lead. Provider facts do not establish meaningful contact.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"direction\": \"outbound\",\n  \"disposition\": \"answered\"\n}"
-            }
-          },
-          "response": []
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/calls?leadId={{leadId}}", "host": ["{{baseUrl}}"], "path": ["api", "calls"], "query": [{ "key": "leadId", "value": "{{leadId}}" }] }
+          }
         },
         {
-          "name": "Save structured remark",
+          "name": "Log Completed Call",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Idempotency-Key",
-                "value": "remark:{{guid}}"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{accessToken}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/calls/{{callAttemptId}}/remarks",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "calls",
-                "{{callAttemptId}}",
-                "remarks"
-              ]
-            },
-            "description": "Meaningful contact needs a statement. A next commitment requires its accountable membership ID and due time. Handle 409 by refreshing before retrying.",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"disposition\": \"meaningful_connection\",\n  \"patientStatement\": \"Patient requested a follow-up after reviewing information.\",\n  \"nextAction\": \"Confirm follow-up availability\",\n  \"nextActionOwnerMembershipId\": \"{{membershipId}}\",\n  \"nextActionDueAt\": \"2026-09-20T10:00:00+05:30\"\n}"
-            }
-          },
-          "response": []
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"agentId\": \"agent-1\",\n  \"direction\": \"outbound\",\n  \"outcome\": \"connected_positive\",\n  \"durationSec\": 278\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/calls", "host": ["{{baseUrl}}"], "path": ["api", "calls"] }
+          }
+        },
+        {
+          "name": "Click-to-Call Dialer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"agentId\": \"agent-1\",\n  \"phone\": \"+91 98491 22618\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/calls/dial", "host": ["{{baseUrl}}"], "path": ["api", "calls", "dial"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Notes & Remarks",
+      "item": [
+        {
+          "name": "List Notes",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/notes?leadId={{leadId}}", "host": ["{{baseUrl}}"], "path": ["api", "notes"], "query": [{ "key": "leadId", "value": "{{leadId}}" }] }
+          }
+        },
+        {
+          "name": "Create Note",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"authorId\": \"agent-1\",\n  \"content\": \"Client requested annual billing structure with quarterly payments.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/notes", "host": ["{{baseUrl}}"], "path": ["api", "notes"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Tasks & Cadence",
+      "item": [
+        {
+          "name": "List Tasks",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tasks?leadId={{leadId}}", "host": ["{{baseUrl}}"], "path": ["api", "tasks"], "query": [{ "key": "leadId", "value": "{{leadId}}" }] }
+          }
+        },
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"assigneeId\": \"agent-1\",\n  \"title\": \"Confirm Saturday product demo slot\",\n  \"status\": \"open\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/tasks", "host": ["{{baseUrl}}"], "path": ["api", "tasks"] }
+          }
+        },
+        {
+          "name": "Update Task Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/tasks/{{taskId}}", "host": ["{{baseUrl}}"], "path": ["api", "tasks", "{{taskId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Appointments & Meetings",
+      "item": [
+        {
+          "name": "List Appointments",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/appointments?leadId={{leadId}}", "host": ["{{baseUrl}}"], "path": ["api", "appointments"], "query": [{ "key": "leadId", "value": "{{leadId}}" }] }
+          }
+        },
+        {
+          "name": "Book Appointment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"ownerId\": \"Maya Rao\",\n  \"mode\": \"online\",\n  \"status\": \"booked\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/appointments", "host": ["{{baseUrl}}"], "path": ["api", "appointments"] }
+          }
+        },
+        {
+          "name": "Update Appointment Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/appointments/{{appointmentId}}", "host": ["{{baseUrl}}"], "path": ["api", "appointments", "{{appointmentId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. AI Reviews & Human Confirmation",
+      "item": [
+        {
+          "name": "List AI Review Drafts",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/reviews", "host": ["{{baseUrl}}"], "path": ["api", "reviews"] },
+            "description": "Lists pending AI-generated draft remarks awaiting human confirmation."
+          }
+        },
+        {
+          "name": "Create AI Review Draft",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"confidence\": 91,\n  \"suggestedTemperature\": \"Hot\",\n  \"suggestedObjection\": \"Implementation cost\",\n  \"summaryText\": \"Enterprise CRM rollout requested. High intent with time-bound need.\",\n  \"structuredRemark\": {\n    \"leadRequirement\": \"Enterprise CRM rollout before festive sales cycle.\",\n    \"intentUrgency\": \"High intent. Time-bound need within 4-6 weeks.\",\n    \"decisionMaker\": \"Finance director Priya\",\n    \"primaryObjection\": \"Implementation cost and annual payment terms.\",\n    \"commitmentObtained\": \"Solution review accepted for Saturday 11:30 AM.\",\n    \"nextAction\": \"Call today at 4:30 PM to confirm finance director availability.\"\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/reviews", "host": ["{{baseUrl}}"], "path": ["api", "reviews"] }
+          }
+        },
+        {
+          "name": "Approve AI Review (Human Confirmation)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reviewedBy\": \"Sravani K.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/reviews/{{reviewId}}/approve", "host": ["{{baseUrl}}"], "path": ["api", "reviews", "{{reviewId}}", "approve"] },
+            "description": "Applies human confirmation to AI draft, committing to permanent record."
+          }
+        },
+        {
+          "name": "Reject AI Review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reviewedBy\": \"Sravani K.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/reviews/{{reviewId}}/reject", "host": ["{{baseUrl}}"], "path": ["api", "reviews", "{{reviewId}}", "reject"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Messages (WhatsApp / SMS)",
+      "item": [
+        {
+          "name": "List Messages",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/messages?leadId={{leadId}}", "host": ["{{baseUrl}}"], "path": ["api", "messages"], "query": [{ "key": "leadId", "value": "{{leadId}}" }] }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leadId\": \"{{leadId}}\",\n  \"channel\": \"whatsapp\",\n  \"direction\": \"outbound\",\n  \"content\": \"Namaste Lakshmi garu, here is the proposal link and Saturday meeting invite.\",\n  \"sentBy\": \"Sravani K.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/messages", "host": ["{{baseUrl}}"], "path": ["api", "messages"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Analytics & Intelligence",
+      "item": [
+        {
+          "name": "Lifecycle Funnel & Leak Reasons",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/analytics/funnel", "host": ["{{baseUrl}}"], "path": ["api", "analytics", "funnel"] },
+            "description": "Funnel conversion percentages and drop-off analysis."
+          }
+        },
+        {
+          "name": "Follow-up Ageing Matrix",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/analytics/ageing", "host": ["{{baseUrl}}"], "path": ["api", "analytics", "ageing"] },
+            "description": "Day 0 to Day 15+ follow-up ageing statistics and overdue values."
+          }
+        },
+        {
+          "name": "Manager Cockpit Summary",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/analytics/cockpit", "host": ["{{baseUrl}}"], "path": ["api", "analytics", "cockpit"] },
+            "description": "KPI summary: calls due, follow-ups due, meetings today, AI drafts pending, team scorecard."
+          }
+        },
+        {
+          "name": "Founder / Executive Dashboard",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/analytics/executive", "host": ["{{baseUrl}}"], "path": ["api", "analytics", "executive"] },
+            "description": "Executive metrics: revenue attribution, conversion rate, recoverable opportunity, source economics."
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Admin & Audit",
+      "item": [
+        {
+          "name": "Audit Trail Logs",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/admin/audit", "host": ["{{baseUrl}}"], "path": ["api", "admin", "audit"] },
+            "description": "Compliance audit trail of all mutations."
+          }
+        },
+        {
+          "name": "AI Safety & Operational Policies",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/admin/policies", "host": ["{{baseUrl}}"], "path": ["api", "admin", "policies"] }
+          }
+        },
+        {
+          "name": "Seed Database",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/admin/seed", "host": ["{{baseUrl}}"], "path": ["api", "admin", "seed"] }
+          }
         }
       ]
     }

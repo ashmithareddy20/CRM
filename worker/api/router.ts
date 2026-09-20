@@ -26,6 +26,21 @@ import { handleFinanceRoutes } from "./finance";
 import { handleDiagnosisRoutes } from "./diagnosis";
 import { handleRecoveryRoutes } from "./recovery";
 import { handleReportRoutes } from "./reports";
+import {
+  handleCrmUsers,
+  handleCrmLeads,
+  handleCrmLeadTimeline,
+  handleCrmCalls,
+  handleCrmCallDial,
+  handleCrmNotes,
+  handleCrmTasks,
+  handleCrmAppointments,
+  handleCrmReviews,
+  handleCrmMessages,
+  handleCrmAnalytics,
+  handleCrmAuth,
+  handleCrmAdmin,
+} from "./crm-routes";
 import { createLeadRepository } from "../domain/leads/repository";
 import { LeadIntakeService } from "../domain/leads/service";
 import { QualificationService } from "../domain/qualification/service";
@@ -178,6 +193,29 @@ export async function routeApiRequest(request: Request, env: Env, dependencies: 
     const context = createRequestContext(request, env, { ...dependencies, requestId: () => requestId }); requestId = context.requestId;
     const path = url.pathname;
     if (path === "/api/health" || path === "/api/v1/health") { if (request.method !== "GET") return methodNotAllowed(requestId, ["GET"]); return success({ service: "trh360-api", status: "ok", version: env.DEPLOYMENT_VERSION ?? "development" }, requestId); }
+
+    const routeParts = path.split("/").filter(Boolean);
+    if (routeParts[0] === "api" && !path.startsWith(apiPrefix)) {
+      if (routeParts[1] === "users" && routeParts.length <= 3) return await handleCrmUsers(request, env, routeParts[2]);
+      if (routeParts[1] === "leads") {
+        if (routeParts[3] === "timeline") return await handleCrmLeadTimeline(request, env, routeParts[2]);
+        return await handleCrmLeads(request, env, routeParts[2]);
+      }
+      if (routeParts[1] === "calls") {
+        if (routeParts[2] === "dial") return await handleCrmCallDial(request, env);
+        return await handleCrmCalls(request, env, routeParts[2]);
+      }
+      if (routeParts[1] === "notes" && routeParts.length <= 3) return await handleCrmNotes(request, env, routeParts[2]);
+      if (routeParts[1] === "tasks" && routeParts.length <= 3) return await handleCrmTasks(request, env, routeParts[2]);
+      if (routeParts[1] === "appointments" && routeParts.length <= 3) return await handleCrmAppointments(request, env, routeParts[2]);
+      if (routeParts[1] === "reviews") return await handleCrmReviews(request, env, routeParts[2], routeParts[3]);
+      if (routeParts[1] === "messages" && routeParts.length <= 3) return await handleCrmMessages(request, env, routeParts[2]);
+      if (routeParts[1] === "analytics") return await handleCrmAnalytics(request, env, routeParts[2]);
+      if (routeParts[1] === "auth") return await handleCrmAuth(request, env, routeParts[2]);
+      if (routeParts[1] === "admin") return await handleCrmAdmin(request, env, routeParts[2]);
+      return legacyUnsupported(requestId);
+    }
+
     if (path.startsWith("/api/v1/webhooks/")) return handleProviderWebhook(request, env, { registry: providerRegistry(env), environment: runtimeEnvironment(env), sealPayload: (raw) => encryptField(raw, { tenantId: "webhook-inbox", recordId: crypto.randomUUID(), purpose: "provider-webhook" }, env), enqueue: env.WORK_QUEUE ? (reference) => env.WORK_QUEUE!.send(reference) : undefined });
     if (!path.startsWith(apiPrefix)) return legacyUnsupported(requestId);
     const authResponse = await routeAuthRequest(context); if (authResponse) return authResponse;

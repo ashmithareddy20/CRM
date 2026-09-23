@@ -43,7 +43,7 @@ export function newIdempotencyKey(prefix = "trh360"): string {
 /** Typed v1 client. Callers must explicitly decide how to present each failure kind. */
 export class ApiClient {
   private readonly baseUrl: string;
-  private readonly accessToken?: string;
+  private accessToken?: string;
   private readonly csrfToken?: string;
   private readonly requestFetch: typeof fetch;
 
@@ -51,7 +51,15 @@ export class ApiClient {
     this.baseUrl = normalizedBaseUrl(options.baseUrl);
     this.accessToken = options.accessToken;
     this.csrfToken = options.csrfToken;
-    this.requestFetch = options.fetch ?? fetch;
+    this.requestFetch = options.fetch ?? ((input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init));
+  }
+
+  setAccessToken(token?: string): void {
+    this.accessToken = token;
+  }
+
+  getAccessToken(): string | undefined {
+    return this.accessToken;
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -65,13 +73,15 @@ export class ApiClient {
 
     let response: Response;
     try {
-      response = await this.requestFetch(`${this.baseUrl}${path}`, {
+      const doFetch = this.requestFetch ?? globalThis.fetch;
+      response = await doFetch(`${this.baseUrl}${path}`, {
         ...options,
         headers,
-        credentials: "include",
+        credentials: "same-origin",
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
       });
-    } catch {
+    } catch (networkError) {
+      console.error("CRM service network fetch error:", path, networkError);
       throw new ApiClientError("Unable to reach the CRM service. Your entry is still on this device.", "network");
     }
 
@@ -100,8 +110,85 @@ export class ApiClient {
     return { items: Array.isArray(response) ? response : response.items };
   }
 
-  me(): Promise<AuthenticatedMembership> { return this.request("/api/auth/me").catch(() => this.request("/api/v1/me")); }
-  logout(): Promise<{ loggedOut: boolean }> { return this.request("/api/auth/logout", { method: "POST", idempotencyKey: newIdempotencyKey("logout") }).catch(() => this.request("/api/v1/auth/logout", { method: "POST", idempotencyKey: newIdempotencyKey("logout") })); }
+  async login(email: string, password = "password"): Promise<any> {
+    const res = await this.request<any>("/api/auth/login", {
+      method: "POST",
+      body: { email, password },
+    });
+    return res?.data || res;
+  }
+  async tenants(): Promise<any[]> {
+    const res = await this.request<any>("/api/tenants");
+    return res?.data || res || [];
+  }
+  async ask(query: string): Promise<any> {
+    const res = await this.request<any>("/api/ask", {
+      method: "POST",
+      body: { query },
+    });
+    return res?.data || res;
+  }
+  async analyticsQuality(): Promise<any> {
+    const res = await this.request<any>("/api/analytics/quality-qa");
+    return res?.data || res;
+  }
+  async analyticsOwnerCockpit(): Promise<any> {
+    const res = await this.request<any>("/api/analytics/owner-cockpit");
+    return res?.data || res;
+  }
+  async updateLead(leadId: string, changes: Record<string, any>): Promise<any> {
+    return this.request(`/api/leads/${encodeURIComponent(leadId)}`, {
+      method: "PATCH",
+      body: changes,
+    });
+  }
+  async updateLeadTemperature(leadId: string, qualification: string): Promise<any> {
+    return this.request(`/api/leads/${encodeURIComponent(leadId)}`, {
+      method: "PATCH",
+      body: { qualification },
+    });
+  }
+  async closeLead(leadId: string, primaryReason: string, secondaryReason?: string, evidence?: string, isRecoverable = 1): Promise<any> {
+    return this.request(`/api/leads/${encodeURIComponent(leadId)}`, {
+      method: "PATCH",
+      body: {
+        status: "closed",
+        closePrimaryReason: primaryReason,
+        closeSecondaryReason: secondaryReason,
+        closeEvidence: evidence,
+        isRecoverable,
+      },
+    });
+  }
+  async logCall(input: {
+    leadId: string;
+    agentId: string;
+    durationSec: number;
+    outcome?: string;
+    language?: string;
+    transcript?: string;
+    agentTemp?: string;
+    aiSuggestedTemp?: string;
+  }): Promise<any> {
+    return this.request("/api/calls", {
+      method: "POST",
+      body: input,
+    });
+  }
+  async transcribeAudio(input: {
+    audioBase64?: string;
+    mimeType?: string;
+    apiKey?: string;
+    language?: string;
+    leadName?: string;
+  }): Promise<any> {
+    return this.request("/api/calls/transcribe", {
+      method: "POST",
+      body: input,
+    });
+  }
+  me(): Promise<AuthenticatedMembership> { return this.request<AuthenticatedMembership>("/api/auth/me").catch(() => this.request<AuthenticatedMembership>("/api/v1/me")); }
+  logout(): Promise<{ loggedOut: boolean }> { return this.request<{ loggedOut: boolean }>("/api/auth/logout", { method: "POST", idempotencyKey: newIdempotencyKey("logout") }).catch(() => this.request<{ loggedOut: boolean }>("/api/v1/auth/logout", { method: "POST", idempotencyKey: newIdempotencyKey("logout") })); }
   async leads(cursor?: string, limit = 25): Promise<ApiList<LeadSummary>> {
     const params = new URLSearchParams({ limit: String(limit), ...(cursor ? { cursor } : {}) });
     try {
@@ -122,8 +209,10 @@ export class ApiClient {
           phone: input.phone,
           email: input.email,
           source: input.sourceId || input.origin || "manual",
+          department: (input as any).department || "General Surgery",
           status: "new",
-          ownerId: "agent-1",
+          ownerId: (input as any).ownerId || "Sravani",
+          forceNew: (input as any).forceNew || false,
         },
         idempotencyKey,
       });
@@ -181,6 +270,92 @@ export class ApiClient {
   }
   saveCallRemark(callId: string, input: CallRemarkInput, preconditions: CommandPreconditions): Promise<unknown> {
     return this.request(`/api/v1/calls/${encodeURIComponent(callId)}/remarks`, { method: "POST", body: input, idempotencyKey: preconditions.idempotencyKey, ifMatch: preconditions.ifMatch });
+  }
+
+  // Thesis Endpoints
+  async voiceAiOverview(): Promise<any> {
+    const res = await this.request<any>("/api/voice-ai/overview");
+    return res?.data || res;
+  }
+  async voiceAiCampaigns(): Promise<any[]> {
+    const res = await this.request<any>("/api/voice-ai/campaigns");
+    return res?.data || res || [];
+  }
+  async voiceAiAgents(): Promise<any[]> {
+    const res = await this.request<any>("/api/voice-ai/agents");
+    return res?.data || res || [];
+  }
+  async voiceAiRuns(): Promise<any[]> {
+    const res = await this.request<any>("/api/voice-ai/runs");
+    return res?.data || res || [];
+  }
+  async voiceAiLiveMonitor(): Promise<any[]> {
+    const res = await this.request<any>("/api/voice-ai/live-monitor");
+    return res?.data || res || [];
+  }
+
+  async clinicalAppointments(): Promise<any[]> {
+    const res = await this.request<any>("/api/clinical/appointments");
+    return res?.data || res || [];
+  }
+  async clinicalDoctorAllocation(): Promise<any[]> {
+    const res = await this.request<any>("/api/clinical/doctor-allocation");
+    return res?.data || res || [];
+  }
+  async clinicalNoShows(): Promise<any[]> {
+    const res = await this.request<any>("/api/clinical/no-shows");
+    return res?.data || res || [];
+  }
+  async clinicalFinancialQueue(): Promise<any[]> {
+    const res = await this.request<any>("/api/clinical/financial-queue");
+    return res?.data || res || [];
+  }
+  async clinicalAdmissions(): Promise<any[]> {
+    const res = await this.request<any>("/api/clinical/admissions");
+    return res?.data || res || [];
+  }
+  async clinicalHandoffs(): Promise<any[]> {
+    const res = await this.request<any>("/api/clinical/handoffs");
+    return res?.data || res || [];
+  }
+
+  async managerConversionStats(): Promise<any> {
+    const res = await this.request<any>("/api/manager/conversion-stats");
+    return res?.data || res;
+  }
+  async managerAgentScorecards(): Promise<any[]> {
+    const res = await this.request<any>("/api/manager/agent-scorecards");
+    return res?.data || res || [];
+  }
+  async managerEscalations(): Promise<any> {
+    const res = await this.request<any>("/api/manager/escalations");
+    return res?.data || res;
+  }
+
+  async founderSourceRoi(): Promise<any[]> {
+    const res = await this.request<any>("/api/founder/source-roi");
+    return res?.data || res || [];
+  }
+  async founderCohortsComparison(): Promise<any[]> {
+    const res = await this.request<any>("/api/founder/cohorts-comparison");
+    return res?.data || res || [];
+  }
+  async founderDiagnostic15day(): Promise<any> {
+    const res = await this.request<any>("/api/founder/diagnostic-15day");
+    return res?.data || res;
+  }
+
+  async adminSources(): Promise<any[]> {
+    const res = await this.request<any>("/api/admin/sources");
+    return res?.data || res || [];
+  }
+  async adminTelephony(): Promise<any> {
+    const res = await this.request<any>("/api/admin/telephony");
+    return res?.data || res;
+  }
+  async adminAuditLogs(): Promise<any[]> {
+    const res = await this.request<any>("/api/admin/audit");
+    return res?.data || res || [];
   }
 }
 

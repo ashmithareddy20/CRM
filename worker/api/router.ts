@@ -27,6 +27,7 @@ import { handleDiagnosisRoutes } from "./diagnosis";
 import { handleRecoveryRoutes } from "./recovery";
 import { handleReportRoutes } from "./reports";
 import {
+  handleCrmTenants,
   handleCrmUsers,
   handleCrmLeads,
   handleCrmLeadTimeline,
@@ -37,9 +38,16 @@ import {
   handleCrmAppointments,
   handleCrmReviews,
   handleCrmMessages,
+  handleCrmWhatsAppInbound,
   handleCrmAnalytics,
   handleCrmAuth,
   handleCrmAdmin,
+  handleCrmAsk,
+  handleCrmCallTranscribe,
+  handleCrmVoiceAi,
+  handleCrmClinical,
+  handleCrmManager,
+  handleCrmFounder,
 } from "./crm-routes";
 import { createLeadRepository } from "../domain/leads/repository";
 import { LeadIntakeService } from "../domain/leads/service";
@@ -196,6 +204,7 @@ export async function routeApiRequest(request: Request, env: Env, dependencies: 
 
     const routeParts = path.split("/").filter(Boolean);
     if (routeParts[0] === "api" && !path.startsWith(apiPrefix)) {
+      if (routeParts[1] === "tenants") return await handleCrmTenants(request, env);
       if (routeParts[1] === "users" && routeParts.length <= 3) return await handleCrmUsers(request, env, routeParts[2]);
       if (routeParts[1] === "leads") {
         if (routeParts[3] === "timeline") return await handleCrmLeadTimeline(request, env, routeParts[2]);
@@ -203,16 +212,29 @@ export async function routeApiRequest(request: Request, env: Env, dependencies: 
       }
       if (routeParts[1] === "calls") {
         if (routeParts[2] === "dial") return await handleCrmCallDial(request, env);
+        if (routeParts[2] === "transcribe") return await handleCrmCallTranscribe(request, env);
         return await handleCrmCalls(request, env, routeParts[2]);
       }
+      if (routeParts[1] === "transcribe") return await handleCrmCallTranscribe(request, env);
       if (routeParts[1] === "notes" && routeParts.length <= 3) return await handleCrmNotes(request, env, routeParts[2]);
       if (routeParts[1] === "tasks" && routeParts.length <= 3) return await handleCrmTasks(request, env, routeParts[2]);
       if (routeParts[1] === "appointments" && routeParts.length <= 3) return await handleCrmAppointments(request, env, routeParts[2]);
-      if (routeParts[1] === "reviews") return await handleCrmReviews(request, env, routeParts[2], routeParts[3]);
-      if (routeParts[1] === "messages" && routeParts.length <= 3) return await handleCrmMessages(request, env, routeParts[2]);
+      if (routeParts[1] === "reviews" && routeParts.length <= 4) return await handleCrmReviews(request, env, routeParts[2], routeParts[3]);
+      if (routeParts[1] === "messages") {
+        if (routeParts[2] === "inbound") return await handleCrmWhatsAppInbound(request, env);
+        if (routeParts.length <= 3) return await handleCrmMessages(request, env, routeParts[2]);
+      }
+      if (routeParts[1] === "webhooks" && routeParts[2] === "whatsapp") {
+        return await handleCrmWhatsAppInbound(request, env);
+      }
       if (routeParts[1] === "analytics") return await handleCrmAnalytics(request, env, routeParts[2]);
       if (routeParts[1] === "auth") return await handleCrmAuth(request, env, routeParts[2]);
       if (routeParts[1] === "admin") return await handleCrmAdmin(request, env, routeParts[2]);
+      if (routeParts[1] === "ask") return await handleCrmAsk(request, env);
+      if (routeParts[1] === "voice-ai") return await handleCrmVoiceAi(request, env, routeParts[2]);
+      if (routeParts[1] === "clinical") return await handleCrmClinical(request, env, routeParts[2]);
+      if (routeParts[1] === "manager") return await handleCrmManager(request, env, routeParts[2]);
+      if (routeParts[1] === "founder") return await handleCrmFounder(request, env, routeParts[2]);
       return legacyUnsupported(requestId);
     }
 
@@ -231,7 +253,7 @@ export async function routeApiRequest(request: Request, env: Env, dependencies: 
     const domain = await routeDomainRequest(request, context); if (domain) return domain;
     throw new ApiError("NOT_FOUND", 404, "API route not found");
   } catch (error) {
-    if (!(error instanceof ApiError)) console.error("API route failed", { requestId, path: url.pathname });
+    console.error("API route failed:", error);
     return errorResponse(error, requestId);
   }
 }

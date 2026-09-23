@@ -59,8 +59,39 @@ const worker = {
       }, allowedWidths);
     }
 
+    const origin = request.headers.get("Origin");
+    const allowedOrigin = origin || "*";
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": allowedOrigin,
+          "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, Idempotency-Key, If-Match, X-Request-Id, X-CSRF-Token",
+          ...(origin ? { "Access-Control-Allow-Credentials": "true" } : {}),
+          "Access-Control-Max-Age": "86400",
+          "Vary": "Origin",
+        },
+      });
+    }
+
     const apiResponse = await routeApiRequest(request, env);
-    if (apiResponse) return apiResponse;
+    if (apiResponse) {
+      const headers = new Headers(apiResponse.headers);
+      headers.set("Access-Control-Allow-Origin", allowedOrigin);
+      headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, Idempotency-Key, If-Match, X-Request-Id, X-CSRF-Token");
+      if (origin) {
+        headers.set("Access-Control-Allow-Credentials", "true");
+      }
+      headers.set("Vary", "Origin");
+      return new Response(apiResponse.body, {
+        status: apiResponse.status,
+        statusText: apiResponse.statusText,
+        headers,
+      });
+    }
     return handler.fetch(request, env, ctx);
   },
 

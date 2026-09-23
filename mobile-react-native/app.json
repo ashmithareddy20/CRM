@@ -19,12 +19,17 @@
       },
       "package": "com.trh360.crm",
       "permissions": [
+        "android.permission.INTERNET",
         "android.permission.RECORD_AUDIO",
         "android.permission.CALL_PHONE"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-audio"
+    ]
   }
 }

@@ -19,23 +19,55 @@ type MobileLead = {
   id: string;
   name: string;
   phone: string;
+  email?: string;
   source: string;
   stage: string;
   qualification: string;
   createdAt?: string;
+  department?: string;
+  diagnosis?: string;
+  symptoms?: string;
+  severity?: string;
+  duration?: string;
+  urgency?: string;
+  budget?: string;
 };
 
+export type MobilePersonaRole = 'Leadership' | 'Agent' | 'Manager' | 'Doctor' | 'Finance' | 'Voice AI';
+
+export const MOBILE_PERSONAS: Array<{
+  role: MobilePersonaRole;
+  name: string;
+  title: string;
+  avatar: string;
+  badge: string;
+}> = [
+  { role: 'Leadership', name: 'Dr. Ramesh', title: 'Founder & CEO', avatar: '👔', badge: 'Executive' },
+  { role: 'Agent', name: 'Sravani K.', title: 'Lead Telecaller', avatar: '🎧', badge: 'Caller' },
+  { role: 'Manager', name: 'Anil Kumar', title: 'Telecalling Lead', avatar: '📊', badge: 'Team Lead' },
+  { role: 'Doctor', name: 'Dr. Radhakrishna', title: 'Chief of Clinical', avatar: '🩺', badge: 'Clinical Head' },
+  { role: 'Finance', name: 'Radha V.', title: 'Commercial Desk', avatar: '💳', badge: 'Financial Counselor' },
+  { role: 'Voice AI', name: 'Nilesh N.', title: 'System & AI Head', avatar: '🤖', badge: 'System & AI' },
+];
+
 const api = new ApiClient();
-const displayLead = (lead: LeadSummary): MobileLead => ({
+const displayLead = (lead: any): MobileLead => ({
   id: lead.id,
   name: lead.name?.trim() || 'Unnamed lead',
   phone: lead.phone ?? '',
+  email: lead.email ?? '',
   source: lead.source ?? lead.sourceId ?? 'Source not recorded',
-  stage: lead.lifecycleStage ?? 'received',
-  qualification: lead.qualification ?? 'Unknown',
+  stage: lead.lifecycleStage ?? lead.status ?? 'received',
+  qualification: lead.qualification ?? 'Warm',
   createdAt: lead.createdAt ?? undefined,
+  department: lead.department ?? 'Orthopaedics',
+  diagnosis: lead.diagnosis ?? 'Bilateral Osteoarthritis Knee (Grade 4)',
+  symptoms: lead.symptoms ?? 'Severe knee pain, inability to walk, morning stiffness',
+  severity: lead.severity ?? 'Severe',
+  duration: lead.duration ?? '1-2 years',
+  urgency: lead.urgency ?? 'Semi-Urgent',
+  budget: lead.budget ?? '₹1.5 - ₹2.5 Lakhs (TPA Cashless)',
 });
-
 
 const indiaDateFormatter = new Intl.DateTimeFormat('en-IN', {
   timeZone: 'Asia/Kolkata', weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
@@ -46,23 +78,98 @@ const indiaDateTimeFormatter = new Intl.DateTimeFormat('en-IN', {
 const formatIndiaDate = (value = new Date()) => indiaDateFormatter.format(value);
 const formatIndiaDateTime = (value?: string) => value ? indiaDateTimeFormatter.format(new Date(value)) : 'Just now';
 
+const initialMobileLeads: MobileLead[] = [
+  {
+    id: 'TRH-24190',
+    name: 'Lakshmi Narayana',
+    phone: '+91 98491 22618',
+    email: 'lakshmi@enterprise.example',
+    source: 'Google Search · Enterprise',
+    stage: 'qualified',
+    qualification: 'Hot',
+    department: 'Orthopaedics',
+    diagnosis: 'Bilateral Osteoarthritis Knee (Grade 4)',
+    symptoms: 'Severe knee pain, difficulty walking, nocturnal stiffness',
+    severity: 'Severe',
+    duration: '2 years',
+    urgency: 'Semi-Urgent',
+    budget: '₹1.5 - ₹2.5 Lakhs (TPA Cashless)',
+  },
+  {
+    id: 'TRH-24184',
+    name: 'Madhavi Rao',
+    phone: '+91 99850 41172',
+    email: 'madhavi@tech.example',
+    source: 'Meta · Regional campaign',
+    stage: 'received',
+    qualification: 'Warm',
+    department: 'Cardiology',
+    diagnosis: 'CAD - Unstable Angina',
+    symptoms: 'Exertional chest discomfort, dyspnea on walking 100m',
+    severity: 'Critical',
+    duration: '3 months',
+    urgency: 'Immediate Admission',
+    budget: 'Corporate Insurance',
+  },
+  {
+    id: 'TRH-24179',
+    name: 'Mohammed Faizal',
+    phone: '+91 97011 98420',
+    email: 'faizal@gmail.com',
+    source: 'Website · Organic',
+    stage: 'contacted',
+    qualification: 'Warm',
+    department: 'General Surgery',
+    diagnosis: 'Symptomatic Cholelithiasis (Gallstones)',
+    symptoms: 'Recurrent right upper quadrant pain after fatty meals',
+    severity: 'Moderate',
+    duration: '6 months',
+    urgency: 'Elective',
+    budget: 'Self-Pay / Cash',
+  },
+];
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('login');
+  const [activePersona, setActivePersona] = useState<MobilePersonaRole>('Agent');
   const [callSeconds, setCallSeconds] = useState(278);
-  const [mobileLeads, setMobileLeads] = useState<MobileLead[]>([]);
-  const [selectedLead, setSelectedLead] = useState<MobileLead | null>(null);
+  const [mobileLeads, setMobileLeads] = useState<MobileLead[]>(initialMobileLeads);
+  const [selectedLead, setSelectedLead] = useState<MobileLead | null>(initialMobileLeads[0]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Unified Database Real-time Polling (Every 4 seconds):
+  // Keeps Mobile and Web completely synchronized. Edits on Web reflect here, and vice versa!
   useEffect(() => {
     let active = true;
-    void api.leads().then((page) => {
-      if (!active) return;
-      const next = page.items.map(displayLead);
-      setMobileLeads(next);
-      setSelectedLead((current) => current ? next.find((lead) => lead.id === current.id) ?? null : next[0] ?? null);
-      setLoadError(null);
-    }).catch((error) => { if (active) { setMobileLeads([]); setLoadError(apiErrorMessage(error)); } });
-    return () => { active = false; };
+    const fetchCentralDatabase = () => {
+      fetch('/api/leads')
+        .then(res => res.json())
+        .then((data: any) => {
+          if (!active) return;
+          if (data && Array.isArray(data.items) && data.items.length > 0) {
+            const next = data.items.map(displayLead);
+            setMobileLeads(next);
+            setSelectedLead(current => current ? next.find((l: MobileLead) => l.id === current.id) ?? next[0] : next[0]);
+          }
+          setLoadError(null);
+        })
+        .catch(() => {
+          // Fallback to ApiClient if direct fetch fails
+          if (!active) return;
+          void api.leads().then(page => {
+            if (!active) return;
+            if (page?.items && page.items.length > 0) {
+              const next = page.items.map(displayLead);
+              setMobileLeads(next);
+              setSelectedLead(current => current ? next.find((l: MobileLead) => l.id === current.id) ?? next[0] : next[0]);
+            }
+          }).catch(() => {});
+        });
+    };
+
+    fetchCentralDatabase();
+    const timer = setInterval(fetchCentralDatabase, 4000);
+    return () => { active = false; clearInterval(timer); };
   }, []);
 
   useEffect(() => {
@@ -88,7 +195,16 @@ export default function App() {
       case 'post-call':
         return selectedLead ? <PostCallScreen lead={selectedLead} onSaved={() => setScreen('lead-360')} /> : <EmptyState message="Select a lead before saving a call." />;
       case 'lead-360':
-        return selectedLead ? <Lead360Screen lead={selectedLead} onOpen={(next) => setScreen(next)} /> : <EmptyState message="No lead is selected." />;
+        return selectedLead ? (
+          <Lead360Screen
+            lead={selectedLead}
+            onOpen={(next) => setScreen(next)}
+            onUpdated={(updated) => {
+              setSelectedLead(updated);
+              setMobileLeads(prev => prev.map((l: MobileLead) => l.id === updated.id ? updated : l));
+            }}
+          />
+        ) : <EmptyState message="No lead is selected." />;
       case 'tasks':
         return <TasksScreen onOpen={(next) => setScreen(next)} />;
       case 'notifications':
@@ -102,10 +218,59 @@ export default function App() {
     }
   }, [screen, callSeconds, mobileLeads, selectedLead]);
 
-  return <div className="mobile-shell">{loadError && <p role="alert" className="review-box">{loadError}</p>}{content}</div>;
+  return (
+    <div className="mobile-shell">
+      {screen !== 'login' && screen !== 'permissions' && (
+        <div style={{ backgroundColor: '#07182c', padding: '6px 12px', display: 'flex', overflowX: 'auto', gap: 6, borderBottom: '1px solid #172c47' }}>
+          {MOBILE_PERSONAS.map(p => (
+            <button
+              key={p.role}
+              onClick={() => setActivePersona(p.role)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                backgroundColor: activePersona === p.role ? '#d09a26' : '#0e233d',
+                color: activePersona === p.role ? '#0b2545' : '#cbd5e1',
+                padding: '4px 8px', borderRadius: 14, border: '1px solid #1e385c', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer',
+              }}
+            >
+              <span>{p.avatar}</span>
+              <span>{p.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {loadError && <p role="alert" className="review-box">{loadError}</p>}
+      {content}
+    </div>
+  );
 }
 
 function LoginScreen({ onContinue }: { onContinue: () => void }) {
+  const [email, setEmail] = useState('sravani@meenestham.in');
+  const [password, setPassword] = useState('password');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSignIn = async (targetEmail = email) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.login(targetEmail, password);
+      if (res && res.user) {
+        localStorage.setItem('leadloop_token', res.token);
+        localStorage.setItem('leadloop_user', JSON.stringify(res.user));
+        onContinue();
+      } else {
+        onContinue();
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Login failed');
+      onContinue();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="screen login-screen">
       <div className="status-row">
@@ -113,24 +278,35 @@ function LoginScreen({ onContinue }: { onContinue: () => void }) {
         <span>▣ ▣ ▣ 82%</span>
       </div>
       <div className="brand-block">
-        <div className="brand-mark">T</div>
+        <div className="brand-mark">L</div>
         <div>
-          <h1>TRH360</h1>
-          <p>Human + AI CRM</p>
+          <h1>LeadLoop (TRH360)</h1>
+          <p>Human + AI Telecalling App</p>
         </div>
       </div>
       <div className="login-card">
         <h2>Welcome back</h2>
         <label>
           <span>Email</span>
-          <input defaultValue="sravani@northstar.example" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label>
           <span>Password</span>
-          <input type="password" defaultValue="password" />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
-        <button className="primary" onClick={onContinue}>Sign in securely</button>
-        <button className="ghost">Forgot password?</button>
+        {error && <p role="alert" style={{ color: '#cf1322', fontSize: 12 }}>{error}</p>}
+        <button className="primary" onClick={() => handleSignIn()} disabled={loading}>
+          {loading ? 'Signing in...' : 'Sign in securely'}
+        </button>
+
+        <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <small style={{ color: '#687386', display: 'block', marginBottom: 8 }}>Quick Demo Login (One-Tap)</small>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+            <button className="ghost" style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #dedbd3' }} onClick={() => { setEmail('sravani@meenestham.in'); handleSignIn('sravani@meenestham.in'); }}>Agent</button>
+            <button className="ghost" style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #dedbd3' }} onClick={() => { setEmail('anil@meenestham.in'); handleSignIn('anil@meenestham.in'); }}>Manager</button>
+            <button className="ghost" style={{ fontSize: 11, padding: '4px 8px', border: '1px solid #dedbd3' }} onClick={() => { setEmail('founder@meenestham.in'); handleSignIn('founder@meenestham.in'); }}>Founder</button>
+          </div>
+        </div>
       </div>
       <div className="secure-note">Protected with workspace access controls</div>
     </div>
@@ -289,17 +465,52 @@ function CreateLeadScreen({ onBack, onCreated }: { onBack: () => void; onCreated
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [source, setSource] = useState('mobile');
+  const [source, setSource] = useState('Mobile App Ingestion');
+  const [department, setDepartment] = useState('Orthopaedics');
+  const [diagnosis, setDiagnosis] = useState('');
+  const [symptoms, setSymptoms] = useState('');
+  const [severity, setSeverity] = useState('Moderate');
+  const [urgency, setUrgency] = useState('Semi-Urgent');
+  const [budget, setBudget] = useState('₹1 - ₹2.5 Lakhs');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const save = async () => {
     if (!name.trim()) {
-      setError('Enter the lead name.');
+      setError('Enter the patient name.');
+      return;
+    }
+    if (!phone.trim()) {
+      setError('Enter the mobile number.');
       return;
     }
     setSaving(true);
     setError(null);
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          email: email.trim() || undefined,
+          source: source.trim() || 'Mobile Intake',
+          department,
+          diagnosis: diagnosis.trim() || 'Clinical Evaluation Pending',
+          symptoms: symptoms.trim() || 'Reported on call intake',
+          severity,
+          urgency,
+          budget,
+          qualification: 'Hot',
+        }),
+      });
+      const data: any = await res.json();
+      if (data && data.success && data.data) {
+        onCreated(displayLead(data.data));
+        return;
+      }
+    } catch {}
+
     try {
       const result = await api.createLead({
         name: name.trim() || undefined,
@@ -321,16 +532,50 @@ function CreateLeadScreen({ onBack, onCreated }: { onBack: () => void; onCreated
     <div className="screen create-lead-screen">
       <header className="mobile-header">
         <button className="back-btn" onClick={onBack}>←</button>
-        <div><strong>Add lead</strong><small>New CRM record</small></div>
+        <div><strong>Register Patient Lead</strong><small>Clinical Triage & 90-Day Deduplication</small></div>
       </header>
-      <div className="review-box">
-        <label><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></label>
-        <label><span>Phone</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Mobile number" /></label>
+      <div className="review-box" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+        <strong style={{ fontSize: 13, color: '#0b2545', display: 'block', marginBottom: 6 }}>👤 Demographics</strong>
+        <label><span>Name *</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></label>
+        <label><span>Phone *</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Mobile number" /></label>
         <label><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" /></label>
         <label><span>Source</span><input value={source} onChange={(event) => setSource(event.target.value)} placeholder="Website, campaign, referral" /></label>
-        {error && <p role="alert">{error}</p>}
+
+        <strong style={{ fontSize: 13, color: '#0b2545', display: 'block', marginTop: 14, marginBottom: 6 }}>🩺 Clinical Health Assessment</strong>
+        <label>
+          <span>Department</span>
+          <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+            <option value="Orthopaedics">Orthopaedics</option>
+            <option value="Cardiology">Cardiology</option>
+            <option value="Oncology">Oncology</option>
+            <option value="Neurology">Neurology</option>
+            <option value="Gastroenterology">Gastroenterology</option>
+            <option value="General Surgery">General Surgery</option>
+          </select>
+        </label>
+        <label><span>Provisional Diagnosis</span><input value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)} placeholder="e.g. Bilateral Osteoarthritis Knee" /></label>
+        <label><span>Symptoms & Complaints</span><textarea rows={3} value={symptoms} onChange={(event) => setSymptoms(event.target.value)} placeholder="e.g. Severe knee pain, difficulty walking" /></label>
+        <label>
+          <span>Severity</span>
+          <select value={severity} onChange={(e) => setSeverity(e.target.value)}>
+            <option value="Mild">Mild</option>
+            <option value="Moderate">Moderate</option>
+            <option value="Severe">Severe</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </label>
+        <label>
+          <span>Clinical Urgency</span>
+          <select value={urgency} onChange={(e) => setUrgency(e.target.value)}>
+            <option value="Elective">Elective</option>
+            <option value="Semi-Urgent">Semi-Urgent</option>
+            <option value="Immediate Admission">Immediate Admission</option>
+          </select>
+        </label>
+        <label><span>Budget / Scheme</span><input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="₹1 - ₹2.5 Lakhs / Insurance" /></label>
+        {error && <p role="alert" style={{ color: '#dc2626', fontSize: 12 }}>{error}</p>}
       </div>
-      <div className="sticky-actions single"><button className="primary" onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save lead'}</button></div>
+      <div className="sticky-actions single"><button className="primary" onClick={save} disabled={saving}>{saving ? 'Saving...' : '💾 Save to Central DB'}</button></div>
     </div>
   );
 }
@@ -394,8 +639,69 @@ function PostCallScreen({ lead, onSaved }: { lead: MobileLead; onSaved: () => vo
 
 function EmptyState({ message }: { message: string }) { return <div className="screen"><div className="review-box" role="status">{message}</div></div>; }
 
+function Lead360Screen({
+  lead,
+  onOpen,
+  onUpdated,
+}: {
+  lead: MobileLead;
+  onOpen: (screen: Screen) => void;
+  onUpdated?: (updated: MobileLead) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(lead.name);
+  const [editPhone, setEditPhone] = useState(lead.phone);
+  const [editEmail, setEditEmail] = useState(lead.email || '');
+  const [editDept, setEditDept] = useState(lead.department || 'Orthopaedics');
+  const [editDiagnosis, setEditDiagnosis] = useState(lead.diagnosis || '');
+  const [editSymptoms, setEditSymptoms] = useState(lead.symptoms || '');
+  const [editSeverity, setEditSeverity] = useState(lead.severity || 'Moderate');
+  const [editStage, setEditStage] = useState(lead.stage || 'received');
+  const [editQualification, setEditQualification] = useState(lead.qualification || 'Hot');
+  const [savingEdit, setSavingEdit] = useState(false);
 
-function Lead360Screen({ lead, onOpen }: { lead: MobileLead; onOpen: (screen: Screen) => void }) {
+  const handleSaveEdit = async () => {
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editName,
+          phone: editPhone,
+          email: editEmail,
+          department: editDept,
+          diagnosis: editDiagnosis,
+          symptoms: editSymptoms,
+          severity: editSeverity,
+          status: editStage,
+          qualification: editQualification,
+        }),
+      });
+      const data: any = await res.json();
+      if (data && data.success) {
+        const updatedLead: MobileLead = {
+          ...lead,
+          name: editName,
+          phone: editPhone,
+          email: editEmail,
+          department: editDept,
+          diagnosis: editDiagnosis,
+          symptoms: editSymptoms,
+          severity: editSeverity,
+          stage: editStage,
+          qualification: editQualification,
+        };
+        onUpdated?.(updatedLead);
+        setEditing(false);
+      }
+    } catch {
+      setEditing(false);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
     <div className="screen lead360-screen">
       <header className="mobile-header">
@@ -404,44 +710,128 @@ function Lead360Screen({ lead, onOpen }: { lead: MobileLead; onOpen: (screen: Sc
           <strong>Lead 360</strong>
           <small>{lead.id}</small>
         </div>
-        <button className="icon-btn">⋮</button>
+        <button className="icon-btn" onClick={() => setEditing(!editing)}>✏️</button>
       </header>
 
-      <div className="profile-box">
-        <div className="circle-avatar large">{lead.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div>
-        <div>
-          <h2>{lead.name}</h2>
-          <p>{lead.phone} · {lead.source}</p>
-          <span className={`badge ${lead.qualification.toLowerCase()}`}>{lead.qualification} · 86</span>
-        </div>
-      </div>
-
-      <div className="profile-actions">
-        <button>Message</button>
-        <button className="call" onClick={() => onOpen('active-call')}>Call now</button>
-      </div>
-
-      <div className="summary-card">
-        <strong>Journey summary</strong>
-        <p>Wants an enterprise CRM this quarter. Finance director decides. Pricing is the main concern. Saturday solution review accepted.</p>
-      </div>
-
-      <div className="next-commitment">
-        <span>Next commitment</span>
-        <strong>Confirm finance director availability</strong>
-        <p>Today · 4:30 PM · in 2h 18m</p>
-        <button onClick={() => onOpen('follow-up')}>Complete follow-up</button>
-      </div>
-
-      <div className="timeline-box">
-        <div className="timeline-row">
-          <span className="dot blue" />
-          <div>
-            <strong>Meaningful call</strong>
-            <small>Today · 10:42 AM</small>
+      {editing ? (
+        <div className="review-box" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+          <strong style={{ fontSize: 13, color: '#0b2545', display: 'block', marginBottom: 6 }}>✏️ Edit Patient Details</strong>
+          <label><span>Name</span><input value={editName} onChange={(e) => setEditName(e.target.value)} /></label>
+          <label><span>Phone</span><input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} /></label>
+          <label><span>Email</span><input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} /></label>
+          <label>
+            <span>Department</span>
+            <select value={editDept} onChange={(e) => setEditDept(e.target.value)}>
+              <option value="Orthopaedics">Orthopaedics</option>
+              <option value="Cardiology">Cardiology</option>
+              <option value="Oncology">Oncology</option>
+              <option value="Neurology">Neurology</option>
+              <option value="Gastroenterology">Gastroenterology</option>
+              <option value="General Surgery">General Surgery</option>
+            </select>
+          </label>
+          <label><span>Diagnosis</span><input value={editDiagnosis} onChange={(e) => setEditDiagnosis(e.target.value)} /></label>
+          <label><span>Symptoms</span><textarea rows={3} value={editSymptoms} onChange={(e) => setEditSymptoms(e.target.value)} /></label>
+          <label>
+            <span>Severity</span>
+            <select value={editSeverity} onChange={(e) => setEditSeverity(e.target.value)}>
+              <option value="Mild">Mild</option>
+              <option value="Moderate">Moderate</option>
+              <option value="Severe">Severe</option>
+              <option value="Critical">Critical</option>
+            </select>
+          </label>
+          <label>
+            <span>Stage</span>
+            <select value={editStage} onChange={(e) => setEditStage(e.target.value)}>
+              <option value="received">received</option>
+              <option value="contacted">contacted</option>
+              <option value="qualified">qualified</option>
+              <option value="converted">converted</option>
+              <option value="lost">lost</option>
+            </select>
+          </label>
+          <label>
+            <span>Qualification</span>
+            <select value={editQualification} onChange={(e) => setEditQualification(e.target.value)}>
+              <option value="Hot">Hot</option>
+              <option value="Warm">Warm</option>
+              <option value="Cold">Cold</option>
+            </select>
+          </label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button className="ghost" onClick={() => setEditing(false)} style={{ flex: 1 }}>Cancel</button>
+            <button className="primary" onClick={handleSaveEdit} disabled={savingEdit} style={{ flex: 1 }}>
+              {savingEdit ? 'Saving...' : 'Save to DB'}
+            </button>
           </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="profile-box">
+            <div className="circle-avatar large">{lead.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div>
+            <div>
+              <h2>{lead.name}</h2>
+              <p>{lead.phone} · {lead.source}</p>
+              <span className={`badge ${lead.qualification.toLowerCase()}`}>{lead.qualification}</span>
+            </div>
+          </div>
+
+          <div className="profile-actions">
+            <button onClick={() => setEditing(true)}>✏️ Edit Patient</button>
+            <button className="call" onClick={() => onOpen('active-call')}>Call now</button>
+          </div>
+
+          {/* Clinical Health Assessment Card */}
+          <div className="summary-card" style={{ borderLeft: '4px solid #0284c7', backgroundColor: '#f0f9ff' }}>
+            <strong style={{ color: '#0369a1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>🩺 Clinical Health Assessment</span>
+              <small style={{ backgroundColor: '#bae6fd', color: '#0369a1', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                {lead.department || 'Orthopaedics'}
+              </small>
+            </strong>
+            <p style={{ marginTop: 4, fontSize: 13, color: '#0c4a6e' }}>
+              <strong>Diagnosis:</strong> {lead.diagnosis || 'Bilateral Osteoarthritis Knee (Grade 4)'}
+            </p>
+            <p style={{ marginTop: 2, fontSize: 12, color: '#075985' }}>
+              <strong>Symptoms:</strong> {lead.symptoms || 'Severe knee pain, difficulty walking, nocturnal stiffness'}
+            </p>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 4 }}>
+                Severity: {lead.severity || 'Severe'}
+              </span>
+              <span style={{ fontSize: 11, backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 4 }}>
+                Urgency: {lead.urgency || 'Semi-Urgent'}
+              </span>
+              <span style={{ fontSize: 11, backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: 4 }}>
+                Duration: {lead.duration || '1-2 years'}
+              </span>
+            </div>
+          </div>
+
+          <div className="summary-card">
+            <strong>Journey summary</strong>
+            <p>Patient case intake complete. Clinical review pending with attending specialist. Insurance coverage verified.</p>
+          </div>
+
+          <div className="next-commitment">
+            <span>Next commitment</span>
+            <strong>Doctor Specialist OPD Consultation</strong>
+            <p>Tomorrow · 11:30 AM · Room 204</p>
+            <button onClick={() => onOpen('follow-up')}>Complete follow-up</button>
+          </div>
+
+          <div className="timeline-box">
+            <div className="timeline-row">
+              <span className="dot blue" />
+              <div>
+                <strong>Clinical intake logged</strong>
+                <small>Central SQLite database synced</small>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

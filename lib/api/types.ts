@@ -53,6 +53,8 @@ export interface LeadCreateInput {
   origin: "manual" | "import" | "provider_form" | "non_campaign";
   campaignId?: string;
   formId?: string;
+  department?: string;
+  ownerId?: string;
 }
 
 export interface CallAttemptInput {

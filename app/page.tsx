@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Activity, AlarmClock, ArrowDown, ArrowRight, BarChart3, Bell, Bot,
   CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert,
-  CircleCheck, Clock3, Download, FileAudio, FileText, Filter, GitBranch,
+  CircleCheck, Clock3, Download, Edit3, FileAudio, FileText, Filter, GitBranch,
   Headphones, HelpCircle, History, LayoutDashboard, ListFilter,
   LockKeyhole, MessageSquare, Mic, MoreHorizontal, Phone, PhoneCall,
-  PhoneOff, Play, Plus, RotateCcw, Search, Settings, ShieldCheck,
-  SlidersHorizontal, Sparkles, Target, Upload, UserRound,
+  PhoneOff, Play, Plus, RotateCcw, Search, Settings, ShieldAlert, ShieldCheck,
+  SlidersHorizontal, Sparkles, Stethoscope, Target, Upload, UserPlus, UserRound,
   UsersRound, WalletCards, Workflow, X, type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,23 +21,92 @@ import {
   type CrmScreen, type Experience, type ScreenRole,
 } from "./crm-data";
 import { ApiClient, apiErrorMessage, newIdempotencyKey, type LeadSummary } from "@/lib/api";
+import {
+  BenchmarkStrip,
+  OwnerQuestionCockpit,
+  PreCallModal,
+  ActiveCallModal,
+  LeadClosureModal,
+  MultilingualAskModal,
+  SystemTrainingModal,
+  EveningManagerReportModal,
+  UserAccountModal,
+  WhatsAppConversationModal,
+  AddPatientLeadModal,
+  EditPatientDetailsModal,
+  ManagerAddAgentModal,
+  VERTICAL_TENANTS,
+  ROLE_USERS,
+  type TenantPack,
+  type RoleUser,
+} from "./crm-modals";
+import {
+  VoiceCampaignsScreen,
+  VoiceAgentConfigScreen,
+  VoiceRunsScreen,
+  VoiceLiveMonitorScreen,
+  VoiceConfidenceScreen,
+  VoiceAnalyticsScreen,
+  AdminSourcesScreen,
+  AdminTelephonyScreen,
+  AdminAuditScreen,
+  OpsAppointmentsScreen,
+  OpsDoctorAllocationScreen,
+  OpsNoShowScreen,
+  OpsFinancialQueueScreen,
+  OpsAdmissionQueueScreen,
+  OpsHandoffScreen,
+  ManagerDailyConversionScreen,
+  ManagerAgentScorecardScreen,
+  ManagerEscalationsScreen,
+  OwnerCohortScreen,
+  OwnerSourceRoiScreen,
+  OwnerReportLibraryScreen,
+  LeadScoringModal,
+  Cadence48hSchedulerModal,
+  NineLevelDrillDownModal,
+  FifteenDayDiagnosticModal,
+  ThesisSection2BusinessProblemCard,
+} from "./crm-thesis-screens";
 
-type AppRole = "Agent" | "Manager" | "Leadership" | "Operations" | "Admin" | "Voice AI";
+type AppRole = "Leadership" | "Agent" | "Manager" | "Doctor" | "Finance" | "Voice AI" | "Operations" | "Admin";
 
 const roleLanding: Record<AppRole, string> = {
-  Agent: "agent-my-day", Manager: "manager-cockpit", Leadership: "owner-founder",
-  Operations: "ops-appointments", Admin: "admin-control-tower", "Voice AI": "voice-overview",
+  Leadership: "owner-founder",
+  Agent: "agent-my-day",
+  Manager: "manager-cockpit",
+  Doctor: "ops-doctor-allocation",
+  Finance: "ops-financial-queue",
+  "Voice AI": "voice-overview",
+  Operations: "ops-appointments",
+  Admin: "admin-control-tower",
 };
 
 const roleLabels: Record<AppRole, string> = {
-  Agent: "Telecalling Agent", Manager: "Team Manager", Leadership: "Founder / Leadership",
-  Operations: "Revenue Operations", Admin: "System Administrator", "Voice AI": "Voice AI Control",
+  Leadership: "👔 Founder / Leadership (Dr. Ramesh)",
+  Agent: "🎧 Telecalling Agent (Sravani K.)",
+  Manager: "📊 Team Manager (Anil Kumar)",
+  Doctor: "🩺 Doctor & Clinical Head (Dr. Radhakrishna)",
+  Finance: "💳 Financial Counselor (Radha V.)",
+  "Voice AI": "🤖 Voice AI & Admin (Nilesh N.)",
+  Operations: "📋 Revenue Operations (Priya Rao)",
+  Admin: "⚙️ System Administrator",
 };
 
 const roleNav: Record<AppRole, Array<{ label: string; id: string; icon: LucideIcon }>> = {
+  Leadership: [
+    { label: "Founder dashboard", id: "owner-founder", icon: LayoutDashboard },
+    { label: "Pipeline leads", id: "agent-my-leads", icon: UsersRound },
+    { label: "Source ROI", id: "owner-source-roi", icon: Target },
+    { label: "Cohorts", id: "owner-cohort", icon: BarChart3 },
+    { label: "Drill-down", id: "owner-drill-down", icon: GitBranch },
+    { label: "15-day diagnostic", id: "owner-diagnostic", icon: Sparkles },
+    { label: "Reports", id: "owner-report-library", icon: FileText },
+  ],
   Agent: [
     { label: "My day", id: "agent-my-day", icon: LayoutDashboard },
     { label: "My leads", id: "agent-my-leads", icon: UsersRound },
+    { label: "Lead 360", id: "agent-lead-360", icon: UserRound },
     { label: "Daily tasks", id: "agent-tasks", icon: CircleCheck },
     { label: "Appointments", id: "agent-calendar", icon: CalendarDays },
     { label: "Recovery", id: "agent-recovery", icon: RotateCcw },
@@ -45,20 +114,38 @@ const roleNav: Record<AppRole, Array<{ label: string; id: string; icon: LucideIc
   ],
   Manager: [
     { label: "Manager cockpit", id: "manager-cockpit", icon: LayoutDashboard },
+    { label: "All leads & queue", id: "agent-my-leads", icon: UsersRound },
     { label: "Conversion", id: "manager-daily-conversion", icon: Target },
     { label: "Funnel leaks", id: "manager-funnel", icon: GitBranch },
     { label: "Assignments", id: "manager-assignment", icon: Workflow },
-    { label: "Team", id: "manager-agent-scorecard", icon: UsersRound },
+    { label: "Team & scorecards", id: "manager-agent-scorecard", icon: UsersRound },
     { label: "Call quality", id: "manager-call-qa", icon: Headphones },
     { label: "Escalations", id: "manager-escalations", icon: CircleAlert },
   ],
-  Leadership: [
-    { label: "Founder dashboard", id: "owner-founder", icon: LayoutDashboard },
-    { label: "Source ROI", id: "owner-source-roi", icon: Target },
-    { label: "Cohorts", id: "owner-cohort", icon: BarChart3 },
-    { label: "Drill-down", id: "owner-drill-down", icon: GitBranch },
-    { label: "15-day diagnostic", id: "owner-diagnostic", icon: Sparkles },
-    { label: "Reports", id: "owner-report-library", icon: FileText },
+  Doctor: [
+    { label: "Doctor allocation", id: "ops-doctor-allocation", icon: Stethoscope },
+    { label: "Appointments", id: "ops-appointments", icon: CalendarDays },
+    { label: "Patient leads", id: "agent-my-leads", icon: UsersRound },
+    { label: "No-show recovery", id: "ops-no-show", icon: CircleAlert },
+    { label: "Admission queue", id: "ops-admission-queue", icon: CircleCheck },
+    { label: "Journey handoff", id: "ops-handoff", icon: Workflow },
+  ],
+  Finance: [
+    { label: "Commercial desk", id: "ops-financial-queue", icon: WalletCards },
+    { label: "Commercial case", id: "ops-financial-case", icon: FileText },
+    { label: "Admission & packages", id: "ops-admission-queue", icon: CircleCheck },
+    { label: "All leads", id: "agent-my-leads", icon: UsersRound },
+    { label: "Funnel leaks", id: "manager-funnel", icon: GitBranch },
+    { label: "30-day recovery", id: "agent-recovery", icon: RotateCcw },
+  ],
+  "Voice AI": [
+    { label: "Overview", id: "voice-overview", icon: LayoutDashboard },
+    { label: "Campaigns", id: "voice-campaigns", icon: Target },
+    { label: "Voice agents", id: "voice-agent-config", icon: Bot },
+    { label: "Call runs", id: "voice-runs", icon: PhoneCall },
+    { label: "Live monitor", id: "voice-live-monitor", icon: Activity },
+    { label: "Review queue", id: "voice-confidence", icon: ShieldCheck },
+    { label: "Analytics", id: "voice-analytics", icon: BarChart3 },
   ],
   Operations: [
     { label: "Appointments", id: "ops-appointments", icon: CalendarDays },
@@ -83,15 +170,6 @@ const roleNav: Record<AppRole, Array<{ label: string; id: string; icon: LucideIc
     { label: "API & webhooks", id: "admin-webhooks", icon: Settings },
     { label: "Audit log", id: "admin-audit", icon: History },
   ],
-  "Voice AI": [
-    { label: "Overview", id: "voice-overview", icon: LayoutDashboard },
-    { label: "Campaigns", id: "voice-campaigns", icon: Target },
-    { label: "Voice agents", id: "voice-agent-config", icon: Bot },
-    { label: "Call runs", id: "voice-runs", icon: PhoneCall },
-    { label: "Live monitor", id: "voice-live-monitor", icon: Activity },
-    { label: "Review queue", id: "voice-confidence", icon: ShieldCheck },
-    { label: "Analytics", id: "voice-analytics", icon: BarChart3 },
-  ],
 };
 
 const temperatureClass: Record<string, string> = {
@@ -112,6 +190,104 @@ const indiaDateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
 const formatIndiaDate = (value = new Date()) => indiaDateFormatter.format(value);
 const formatIndiaDateTime = (value: string | Date) => indiaDateTimeFormatter.format(new Date(value));
 
+type DisplayLead = {
+  id: string;
+  apiId: string;
+  name: string;
+  phone: string;
+  source: string;
+  stage: string;
+  qualification: string;
+  next: string;
+  last: string;
+  agent: string;
+  createdAt?: string | null;
+};
+
+const initialSampleLeads: DisplayLead[] = [
+  {
+    id: "TRH-24190",
+    apiId: "lead-1",
+    name: "Lakshmi Narayana",
+    phone: "+91 98491 22618",
+    source: "Google Search · Enterprise",
+    stage: "qualified",
+    qualification: "hot",
+    next: "Call now",
+    last: "18 min ago",
+    agent: "Sravani",
+  },
+  {
+    id: "TRH-24184",
+    apiId: "lead-2",
+    name: "Madhavi Rao",
+    phone: "+91 99850 41172",
+    source: "Meta · Regional campaign",
+    stage: "received",
+    qualification: "warm",
+    next: "Today, 11:30 AM",
+    last: "42 min ago",
+    agent: "Anil",
+  },
+  {
+    id: "TRH-24179",
+    apiId: "lead-3",
+    name: "Mohammed Faizal",
+    phone: "+91 97011 98420",
+    source: "Website · Organic",
+    stage: "contacted",
+    qualification: "warm",
+    next: "Today, 12:15 PM",
+    last: "1 hr ago",
+    agent: "Divya",
+  },
+  {
+    id: "TRH-24172",
+    apiId: "lead-4",
+    name: "Sailaja Devi",
+    phone: "+91 93920 36442",
+    source: "YouTube · Product guide",
+    stage: "qualified",
+    qualification: "cold",
+    next: "Tomorrow, 9:00 AM",
+    last: "Yesterday",
+    agent: "Sravani",
+  },
+  {
+    id: "TRH-24168",
+    apiId: "lead-5",
+    name: "Prakash Reddy",
+    phone: "+91 90102 78256",
+    source: "Incoming call",
+    stage: "received",
+    qualification: "warm",
+    next: "Retry in 23 min",
+    last: "2 attempts",
+    agent: "Kiran",
+  },
+];
+
+function mapApiLead(lead: LeadSummary): DisplayLead {
+  const rawStatus = String((lead as any).status || lead.lifecycleStage || "received").toLowerCase();
+  const stage = rawStatus === "new" ? "received" : rawStatus;
+  const rawQual = String((lead as any).qualification || "Warm").toLowerCase();
+  const agent = (lead as any).ownerId || lead.assignedMembershipId || "Unassigned";
+
+  return {
+    id: lead.id,
+    apiId: lead.id,
+    name: lead.name?.trim() || "Unnamed lead",
+    phone: lead.phone ?? "",
+    source: lead.source ?? lead.sourceId ?? "Source not recorded",
+    stage,
+    qualification: rawQual,
+    next: lead.nextAction?.action ?? ((lead as any).uncalledSince ? "Immediate Call Required (SLA 5m)" : "No next commitment"),
+    last: lead.updatedAt || lead.createdAt ? formatIndiaDateTime(lead.updatedAt ?? lead.createdAt!) : "Not recorded",
+    agent,
+    createdAt: lead.createdAt,
+  };
+}
+
 export default function Home() {
   const [role, setRole] = useState<AppRole>("Agent");
   const [experience, setExperience] = useState<Experience>("desktop");
@@ -120,23 +296,81 @@ export default function Home() {
   const [atlasSearch, setAtlasSearch] = useState("");
   const [callSeconds, setCallSeconds] = useState(278);
   const [notice, setNotice] = useState<string | null>(null);
-  const [leads, setLeads] = useState<DisplayLead[]>([]);
+  const [leads, setLeads] = useState<DisplayLead[]>(initialSampleLeads);
   const [loadError, setLoadError] = useState<string | null>(null);
   const activeScreen = crmScreens.find((screen) => screen.id === activeId) ?? crmScreens[0];
 
+  // PRD Multi-tenant and user session state
+  const [currentUser, setCurrentUser] = useState<RoleUser>(ROLE_USERS[0]);
+  const [currentTenant, setCurrentTenant] = useState<TenantPack>(VERTICAL_TENANTS[0]);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+
+  // PRD Modals state
+  const [preCallLead, setPreCallLead] = useState<DisplayLead | null>(null);
+  const [activeCallLead, setActiveCallLead] = useState<DisplayLead | null>(null);
+  const [activeCallLang, setActiveCallLang] = useState<string>("telugu");
+  const [closingLead, setClosingLead] = useState<DisplayLead | null>(null);
+  const [whatsAppModalLead, setWhatsAppModalLead] = useState<DisplayLead | null>(null);
+  const [askModalOpen, setAskModalOpen] = useState(false);
+  const [trainingModalOpen, setTrainingModalOpen] = useState(false);
+  const [managerReportModalOpen, setManagerReportModalOpen] = useState(false);
+  const [scoringLead, setScoringLead] = useState<DisplayLead | null>(null);
+  const [cadenceLead, setCadenceLead] = useState<DisplayLead | null>(null);
+  const [drillDownModalOpen, setDrillDownModalOpen] = useState(false);
+  const [diagnostic15dModalOpen, setDiagnostic15dModalOpen] = useState(false);
+  const [addLeadOpen, setAddLeadOpen] = useState(false);
+  const [editLead, setEditLead] = useState<DisplayLead | null>(null);
+  const [addAgentOpen, setAddAgentOpen] = useState(false);
+  const [newAgents, setNewAgents] = useState<any[]>([]);
+  const [sonioxApiKey, setSonioxApiKey] = useState("43569228c10e9142e5e35a5cf92ab7c488444f97d84e7e6216e99e43c19f831a");
+
   useEffect(() => {
-    let active = true;
-    const loadLeads = async () => {
-      try {
-        const page = await api.leads();
-        if (active) { setLeads(page.items.map(mapApiLead)); setLoadError(null); }
-      } catch (error) {
-        if (active) { setLeads([]); setLoadError(apiErrorMessage(error)); }
+    try {
+      const savedKey = localStorage.getItem("soniox_api_key");
+      if (savedKey) {
+        setSonioxApiKey(savedKey);
+      } else {
+        localStorage.setItem("soniox_api_key", "43569228c10e9142e5e35a5cf92ab7c488444f97d84e7e6216e99e43c19f831a");
       }
-    };
-    void loadLeads();
-    return () => { active = false; };
+      const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const urlRole = (params?.get("role") || localStorage.getItem("trh360_user_role")) as AppRole;
+      if (urlRole && roleLanding[urlRole]) {
+        setRole(urlRole);
+        setActiveId(roleLanding[urlRole]);
+        const matched = ROLE_USERS.find((u) => u.role.toLowerCase() === urlRole.toLowerCase());
+        if (matched) setCurrentUser(matched);
+      }
+    } catch {}
   }, []);
+
+  const handleSonioxKeyChange = (key: string) => {
+    setSonioxApiKey(key);
+    try {
+      localStorage.setItem("soniox_api_key", key);
+    } catch {}
+  };
+
+  const loadLeads = async () => {
+    try {
+      const page = await api.leads();
+      if (page?.items && page.items.length > 0) {
+        setLeads(page.items.map(mapApiLead));
+        setLoadError(null);
+      }
+    } catch {
+      // Keep sample records for UI demonstration
+      setLoadError(null);
+    }
+  };
+
+  useEffect(() => {
+    void loadLeads();
+    const interval = window.setInterval(() => {
+      void loadLeads();
+    }, 8000);
+    return () => window.clearInterval(interval);
+  }, [currentTenant]);
+
   useEffect(() => {
     if (activeId !== "mobile-active-call") return;
     const timer = window.setInterval(() => setCallSeconds((value) => value + 1), 1000);
@@ -145,10 +379,14 @@ export default function Home() {
 
   const notify = (message: string) => {
     setNotice(message);
-    window.setTimeout(() => setNotice(null), 2600);
+    window.setTimeout(() => setNotice(null), 2800);
   };
 
   const openScreen = (id: string) => {
+    if (id === "agent-new-lead") {
+      setAddLeadOpen(true);
+      return;
+    }
     const screen = crmScreens.find((item) => item.id === id);
     if (!screen) return;
     setActiveId(id);
@@ -158,34 +396,697 @@ export default function Home() {
   };
 
   const changeRole = (nextRole: AppRole) => {
-    setRole(nextRole); setExperience("desktop"); setActiveId(roleLanding[nextRole]);
+    setRole(nextRole);
+    setExperience("desktop");
+    setActiveId(roleLanding[nextRole]);
+    const matchedUser = ROLE_USERS.find((u) => u.role === nextRole);
+    if (matchedUser) setCurrentUser(matchedUser);
+    try {
+      localStorage.setItem("trh360_user_role", nextRole);
+    } catch {}
+  };
+
+  const handleSelectUser = async (user: RoleUser) => {
+    setCurrentUser(user);
+    setRole(user.role as AppRole);
+    setActiveId(roleLanding[user.role as AppRole] || "agent-my-day");
+    try {
+      localStorage.setItem("trh360_user_role", user.role);
+    } catch {}
+    try {
+      const authRes = await api.login(user.email, "password");
+      if (authRes?.token) {
+        api.setAccessToken(authRes.token);
+      }
+    } catch {}
+    void loadLeads();
+    notify(`Switched workspace role to ${user.name} (${user.title})`);
+  };
+
+  const handleSelectTenant = (tenant: TenantPack) => {
+    setCurrentTenant(tenant);
+    notify(`Switched vertical tenant to "${tenant.name}"`);
+  };
+
+  const handleReassignLead = (leadId: string) => {
+    notify(`⚡ Lead SLA breached (15m). Lead automatically reassigned to least-loaded agent.`);
+    setLeads((prev) =>
+      prev.map((l) => (l.id === leadId || l.apiId === leadId ? { ...l, agent: "Divya M." } : l))
+    );
+  };
+
+  const handleStartCall = (lead: DisplayLead, language: string) => {
+    setPreCallLead(null);
+    setActiveCallLang(language);
+    setActiveCallLead(lead);
+  };
+
+  const handleCallFinished = (callData: any) => {
+    setActiveCallLead(null);
+    notify(`Call logged (${callData.durationSec}s). Temperature marked '${callData.agentTemp}'. Cadence generated.`);
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === callData.leadId || l.apiId === callData.leadId
+          ? { ...l, qualification: callData.agentTemp.toLowerCase(), stage: "contacted", last: "Just now" }
+          : l
+      )
+    );
+  };
+
+  const handleConfirmClose = (leadId: string, reason: string, isRecoverable: boolean) => {
+    setClosingLead(null);
+    notify(
+      `Lead closed (${reason}). ${isRecoverable ? "30-day reactivation touch scheduled in recovery queue." : "Lead archived."}`
+    );
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadId || l.apiId === leadId
+          ? { ...l, stage: "closed", next: isRecoverable ? "30-Day Reactivation" : "Closed" }
+          : l
+      )
+    );
   };
 
   return (
     <main className="crm-root">
-      <WorkspaceTopbar experience={experience} setExperience={(next) => {
-        setExperience(next); setActiveId(next === "mobile" ? "mobile-home" : roleLanding[role]);
-      }} openAtlas={() => setAtlasOpen(true)} />
+      <WorkspaceTopbar
+        role={role}
+        changeRole={changeRole}
+        onAddLead={() => setAddLeadOpen(true)}
+        experience={experience}
+        setExperience={(next) => {
+          setExperience(next);
+          setActiveId(next === "mobile" ? "mobile-home" : roleLanding[role]);
+        }}
+        openAtlas={() => setAtlasOpen(true)}
+        currentTenant={currentTenant}
+        currentUser={currentUser}
+        activeId={activeId}
+        openScreen={openScreen}
+        onOpenAccount={() => setAccountModalOpen(true)}
+        onOpenAsk={() => setAskModalOpen(true)}
+        onOpenTraining={() => setTrainingModalOpen(true)}
+        onOpenReport={() => setManagerReportModalOpen(true)}
+      />
       {experience === "desktop" ? (
         <div className="desktop-shell">
           <DesktopSidebar role={role} activeId={activeId} changeRole={changeRole} openScreen={openScreen} openAtlas={() => setAtlasOpen(true)} />
-          {loadError && <p className="page-description" role="alert">{loadError}</p>}<section className="desktop-content"><DesktopScreen screen={activeScreen} openScreen={openScreen} notify={notify} leads={leads} onLeadCreated={(lead) => setLeads((current) => [lead, ...current.filter((item) => item.id !== lead.id)])} /></section>
+          <section className="desktop-content">
+            <CharacterMissionBanner
+              role={role}
+              currentUser={currentUser}
+              openScreen={openScreen}
+              onAddLead={() => setAddLeadOpen(true)}
+              onAddAgent={() => setAddAgentOpen(true)}
+              onOpenReport={() => setManagerReportModalOpen(true)}
+              onOpenDiagnostic={() => setDiagnostic15dModalOpen(true)}
+              onOpenDrillDown={() => setDrillDownModalOpen(true)}
+              onCallNext={() => {
+                if (leads[0]) setPreCallLead(leads[0]);
+              }}
+            />
+            {loadError && <p className="page-description" role="alert" style={{ marginBottom: 16 }}>{loadError}</p>}
+            <DesktopScreen
+              screen={activeScreen}
+              openScreen={openScreen}
+              notify={notify}
+              leads={leads}
+              onLeadCreated={(lead) => {
+                setLeads((current) => [lead, ...current.filter((item) => item.id !== lead.id)]);
+                void loadLeads();
+              }}
+              onLeadUpdated={() => void loadLeads()}
+              onCallLead={(lead) => setPreCallLead(lead)}
+              onCloseLead={(lead) => setClosingLead(lead)}
+              onOpenWhatsApp={(lead) => setWhatsAppModalLead(lead)}
+              onReassignLead={handleReassignLead}
+              onOpenAsk={() => setAskModalOpen(true)}
+              onOpenTraining={() => setTrainingModalOpen(true)}
+              onScoreLead={(lead) => setScoringLead(lead)}
+              onOpenCadence={(lead) => setCadenceLead(lead)}
+              onOpenDrillDown={() => setDrillDownModalOpen(true)}
+              onOpenDiagnostic15d={() => setDiagnostic15dModalOpen(true)}
+              onEditLead={(lead) => setEditLead(lead)}
+              onAddAgent={() => setAddAgentOpen(true)}
+              newAgents={newAgents}
+            />
+          </section>
         </div>
-      ) : <MobileWorkspace activeId={activeId} openScreen={openScreen} callSeconds={callSeconds} notify={notify} leads={leads} />}
+      ) : (
+        <MobileWorkspace activeId={activeId} openScreen={openScreen} callSeconds={callSeconds} notify={notify} leads={leads} />
+      )}
       {atlasOpen && <ScreenAtlas search={atlasSearch} setSearch={setAtlasSearch} activeId={activeId} openScreen={openScreen} close={() => setAtlasOpen(false)} />}
       {notice && <div className="toast" role="status"><CircleCheck size={18} />{notice}</div>}
+
+      {/* PRD Feature Modals */}
+      {preCallLead && (
+        <PreCallModal
+          lead={preCallLead}
+          sonioxApiKey={sonioxApiKey}
+          onSonioxKeyChange={handleSonioxKeyChange}
+          onClose={() => setPreCallLead(null)}
+          onStartCall={handleStartCall}
+        />
+      )}
+      {activeCallLead && (
+        <ActiveCallModal
+          lead={activeCallLead}
+          language={activeCallLang}
+          sonioxApiKey={sonioxApiKey}
+          onClose={() => setActiveCallLead(null)}
+          onCallFinished={handleCallFinished}
+        />
+      )}
+      {closingLead && (
+        <LeadClosureModal
+          lead={closingLead}
+          onClose={() => setClosingLead(null)}
+          onConfirmClose={handleConfirmClose}
+        />
+      )}
+      {whatsAppModalLead && (
+        <WhatsAppConversationModal
+          lead={whatsAppModalLead}
+          onClose={() => setWhatsAppModalLead(null)}
+          onMessageReceived={async () => {
+            await loadLeads();
+          }}
+          notify={notify}
+        />
+      )}
+      {askModalOpen && <MultilingualAskModal onClose={() => setAskModalOpen(false)} />}
+      {trainingModalOpen && <SystemTrainingModal onClose={() => setTrainingModalOpen(false)} notify={notify} />}
+      {managerReportModalOpen && <EveningManagerReportModal onClose={() => setManagerReportModalOpen(false)} />}
+      {scoringLead && (
+        <LeadScoringModal
+          lead={scoringLead}
+          onClose={() => setScoringLead(null)}
+          onScoreApplied={(score: number, band: string) => {
+            setScoringLead(null);
+            notify(`Lead scored: ${score}/100 (${band}). Pipeline priority updated.`);
+          }}
+        />
+      )}
+      {cadenceLead && (
+        <Cadence48hSchedulerModal
+          lead={cadenceLead}
+          onClose={() => setCadenceLead(null)}
+          notify={notify}
+        />
+      )}
+      {drillDownModalOpen && (
+        <NineLevelDrillDownModal
+          onClose={() => setDrillDownModalOpen(false)}
+        />
+      )}
+      {diagnostic15dModalOpen && (
+        <FifteenDayDiagnosticModal
+          onClose={() => setDiagnostic15dModalOpen(false)}
+        />
+      )}
+      {accountModalOpen && (
+        <UserAccountModal
+          currentUser={currentUser}
+          currentTenant={currentTenant}
+          onSelectUser={handleSelectUser}
+          onSelectTenant={handleSelectTenant}
+          onClose={() => setAccountModalOpen(false)}
+        />
+      )}
+
+      {/* Patient Intake & Edit & Manager Add Agent Modals */}
+      {addLeadOpen && (
+        <AddPatientLeadModal
+          onClose={() => setAddLeadOpen(false)}
+          onLeadAdded={(newLead) => {
+            setLeads((prev) => [newLead, ...prev]);
+            notify(`➕ Added new patient ${newLead.name}. 5-minute SLA timer started.`);
+          }}
+          notify={notify}
+        />
+      )}
+      {editLead && (
+        <EditPatientDetailsModal
+          lead={editLead}
+          onClose={() => setEditLead(null)}
+          onLeadUpdated={(updatedLead) => {
+            setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? updatedLead : l)));
+            notify(`✏️ Updated patient record for ${updatedLead.name}.`);
+          }}
+          notify={notify}
+        />
+      )}
+      {addAgentOpen && (
+        <ManagerAddAgentModal
+          onClose={() => setAddAgentOpen(false)}
+          onAgentAdded={(newAgent) => {
+            setNewAgents((prev) => [newAgent, ...prev]);
+          }}
+          notify={notify}
+        />
+      )}
     </main>
   );
 }
 
-function WorkspaceTopbar({ experience, setExperience, openAtlas }: { experience: Experience; setExperience: (experience: Experience) => void; openAtlas: () => void }) {
-  return <header className="workspace-topbar">
-    <div className="brand-lockup"><div className="brand-mark">T</div><div><strong>TRH360</strong><span>Human + AI CRM</span></div></div>
-    <button className="workspace-name" type="button">Northstar Growth Workspace <ChevronDown size={15} /></button>
-    <div className="top-search" onClick={openAtlas} role="button" tabIndex={0}><Search size={16} /><span>Search leads, calls, reports or screens</span><kbd>⌘ K</kbd></div>
-    <div className="experience-toggle" aria-label="Experience preview"><button className={experience === "desktop" ? "active" : ""} onClick={() => setExperience("desktop")}>Desktop</button><button className={experience === "mobile" ? "active" : ""} onClick={() => setExperience("mobile")}>Mobile</button></div>
-    <button className="icon-button" aria-label="Help"><HelpCircle size={18} /></button><button className="icon-button has-dot" aria-label="Notifications"><Bell size={18} /></button><div className="user-avatar">NS</div>
-  </header>;
+function WorkspaceTopbar({
+  role,
+  changeRole,
+  onAddLead,
+  experience,
+  setExperience,
+  openAtlas,
+  currentTenant,
+  currentUser,
+  onOpenAccount,
+  onOpenAsk,
+  onOpenTraining,
+  onOpenReport,
+  activeId,
+  openScreen,
+}: {
+  role: AppRole;
+  changeRole: (role: AppRole) => void;
+  onAddLead: () => void;
+  experience: Experience;
+  setExperience: (experience: Experience) => void;
+  openAtlas: () => void;
+  currentTenant: TenantPack;
+  currentUser: RoleUser;
+  onOpenAccount: () => void;
+  onOpenAsk: () => void;
+  onOpenTraining: () => void;
+  onOpenReport: () => void;
+  activeId?: string;
+  openScreen?: (id: string) => void;
+}) {
+  const characters: Array<{ role: AppRole; label: string; char: string; icon: string }> = [
+    { role: "Leadership", label: "Executive", char: "Dr. Ramesh", icon: "👔" },
+    { role: "Agent", label: "Telecalling", char: "Sravani", icon: "🎧" },
+    { role: "Manager", label: "Manager", char: "Anil", icon: "📊" },
+    { role: "Doctor", label: "Doctor", char: "Dr. Radhakrishna", icon: "🩺" },
+    { role: "Finance", label: "Finance", char: "Radha V.", icon: "💳" },
+    { role: "Voice AI", label: "Voice AI", char: "Nilesh", icon: "🤖" },
+  ];
+
+  return (
+    <header className="workspace-topbar">
+      <div className="brand-lockup">
+        <div className="brand-mark">T</div>
+        <div>
+          <strong>TRH360</strong>
+          <span>Human + AI CRM</span>
+        </div>
+      </div>
+
+      <button className="workspace-name" type="button" onClick={onOpenAccount} title="Switch Vertical Tenant Pack">
+        {currentTenant.name} <ChevronDown size={15} />
+      </button>
+
+      {/* Prominent Character / Persona Switcher Bar */}
+      <div
+        className="persona-switcher-bar"
+        aria-label="Character Persona Switcher"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          background: "rgba(0,0,0,0.22)",
+          padding: "3px 6px",
+          borderRadius: 8,
+          border: "1px solid rgba(255,255,255,0.14)",
+        }}
+      >
+        {characters.map((item) => {
+          const isActive = role === item.role;
+          return (
+            <button
+              key={item.role}
+              type="button"
+              onClick={() => changeRole(item.role)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "3px 8px",
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: isActive ? 800 : 600,
+                border: isActive ? "1px solid var(--gold)" : "1px solid transparent",
+                background: isActive ? "rgba(208,154,38,0.3)" : "transparent",
+                color: isActive ? "var(--gold)" : "rgba(255,255,255,0.85)",
+                cursor: "pointer",
+                transition: "all 0.12s ease",
+                whiteSpace: "nowrap",
+              }}
+              title={`Switch workspace to ${item.char} (${item.label})`}
+            >
+              <span>{item.icon}</span>
+              <span>{item.char}</span>
+              {isActive && <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--gold)" }} />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Add Lead Quick Button */}
+      <Button
+        size="sm"
+        onClick={onAddLead}
+        style={{
+          background: "var(--gold)",
+          color: "var(--navy)",
+          fontWeight: 800,
+          fontSize: 12,
+          height: 32,
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          flexShrink: 0,
+        }}
+        title="Add new patient lead & health assessment"
+      >
+        <Plus size={14} /> + Add Lead
+      </Button>
+
+      {/* Top Search */}
+      <div className="top-search" onClick={onOpenAsk} role="button" tabIndex={0} title="Search or Ask CRM in Telugu / Hindi / English">
+        <Search size={16} />
+        <span>Search leads or Ask in Telugu, Hindi, English</span>
+        <kbd>Ask</kbd>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenAsk}
+          style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.08)", fontSize: 11, height: 30 }}
+        >
+          <Sparkles size={13} style={{ color: "var(--gold)" }} /> Ask CRM
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenTraining}
+          style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.08)", fontSize: 11, height: 30 }}
+        >
+          <Upload size={13} /> Train
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenReport}
+          style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.08)", fontSize: 11, height: 30 }}
+        >
+          <FileText size={13} /> 21:00 EOD
+        </Button>
+      </div>
+
+      <div className="experience-toggle" aria-label="Experience preview">
+        <button className={experience === "desktop" ? "active" : ""} onClick={() => setExperience("desktop")}>Desktop</button>
+        <button className={experience === "mobile" ? "active" : ""} onClick={() => setExperience("mobile")}>Mobile</button>
+      </div>
+
+      <button
+        onClick={onOpenAccount}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "rgba(255,255,255,0.12)",
+          border: "1px solid rgba(255,255,255,0.22)",
+          borderRadius: 20,
+          padding: "2px 8px 2px 3px",
+          color: "#ffffff",
+          cursor: "pointer",
+        }}
+        title="Switch Account Role"
+      >
+        <div className="user-avatar small" style={{ background: "var(--gold)", color: "var(--navy)", width: 24, height: 24, fontSize: 10 }}>
+          {currentUser.avatar}
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700 }}>{currentUser.name}</span>
+        <ChevronDown size={12} />
+      </button>
+    </header>
+  );
+}
+
+function CharacterMissionBanner({
+  role,
+  currentUser,
+  openScreen,
+  onAddLead,
+  onAddAgent,
+  onOpenReport,
+  onOpenDiagnostic,
+  onOpenDrillDown,
+  onCallNext,
+}: {
+  role: AppRole;
+  currentUser: RoleUser;
+  openScreen: (id: string) => void;
+  onAddLead: () => void;
+  onAddAgent: () => void;
+  onOpenReport: () => void;
+  onOpenDiagnostic: () => void;
+  onOpenDrillDown: () => void;
+  onCallNext: () => void;
+}) {
+  return (
+    <div
+      className="character-mission-banner"
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 12,
+        padding: "10px 16px",
+        background: "linear-gradient(90deg, #0b2545 0%, #13395e 100%)",
+        color: "#ffffff",
+        borderRadius: 10,
+        marginBottom: 16,
+        boxShadow: "0 2px 8px rgba(11,37,69,0.12)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: "50%",
+            background: "var(--gold)",
+            color: "var(--navy)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 800,
+            fontSize: 16,
+            boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+            flexShrink: 0,
+          }}
+        >
+          {currentUser.icon || "👤"}
+        </div>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "1px", color: "var(--gold)", fontWeight: 800 }}>
+              Active Character Workspace
+            </span>
+            <span style={{ fontSize: 11, background: "rgba(255,255,255,0.18)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+              {currentUser.title}
+            </span>
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#ffffff", marginTop: 2 }}>
+            {currentUser.name}
+            <span style={{ fontWeight: 400, fontSize: 12, opacity: 0.85, marginLeft: 8 }}>
+              — {currentUser.tagline}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {role === "Agent" && (
+          <>
+            <Button
+              size="sm"
+              onClick={onAddLead}
+              style={{ background: "var(--gold)", color: "var(--navy)", fontWeight: 800, fontSize: 12 }}
+            >
+              <Plus size={14} style={{ marginRight: 4 }} /> + Add Patient Lead
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onCallNext}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <PhoneCall size={13} style={{ marginRight: 4 }} /> Call Next Hot Lead
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("agent-lead-360")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <UserRound size={13} style={{ marginRight: 4 }} /> Lead 360
+            </Button>
+          </>
+        )}
+
+        {role === "Manager" && (
+          <>
+            <Button
+              size="sm"
+              onClick={onAddAgent}
+              style={{ background: "var(--gold)", color: "var(--navy)", fontWeight: 800, fontSize: 12 }}
+            >
+              <UserPlus size={14} style={{ marginRight: 4 }} /> + Add Agent & Issue Slip
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("manager-agent-scorecard")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <UsersRound size={13} style={{ marginRight: 4 }} /> Team Scorecards
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("manager-daily-conversion")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <Target size={13} style={{ marginRight: 4 }} /> Conversion
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onOpenReport}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <FileText size={13} style={{ marginRight: 4 }} /> 21:00 EOD
+            </Button>
+          </>
+        )}
+
+        {role === "Leadership" && (
+          <>
+            <Button
+              size="sm"
+              onClick={() => openScreen("owner-founder")}
+              style={{ background: "var(--gold)", color: "var(--navy)", fontWeight: 800, fontSize: 12 }}
+            >
+              <BarChart3 size={14} style={{ marginRight: 4 }} /> 50 Lost Leaks
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onOpenDiagnostic}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <Sparkles size={13} style={{ marginRight: 4 }} /> 15-Day Memo
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onOpenDrillDown}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <GitBranch size={13} style={{ marginRight: 4 }} /> 9-Level Tree
+            </Button>
+          </>
+        )}
+
+        {role === "Doctor" && (
+          <>
+            <Button
+              size="sm"
+              onClick={() => openScreen("ops-doctor-allocation")}
+              style={{ background: "var(--gold)", color: "var(--navy)", fontWeight: 800, fontSize: 12 }}
+            >
+              <Stethoscope size={14} style={{ marginRight: 4 }} /> Doctor Allocation
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("ops-appointments")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <CalendarDays size={13} style={{ marginRight: 4 }} /> OPD Slots
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("ops-admission-queue")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <CircleCheck size={13} style={{ marginRight: 4 }} /> Surgery Queue
+            </Button>
+          </>
+        )}
+
+        {role === "Finance" && (
+          <>
+            <Button
+              size="sm"
+              onClick={() => openScreen("ops-financial-queue")}
+              style={{ background: "var(--gold)", color: "var(--navy)", fontWeight: 800, fontSize: 12 }}
+            >
+              <WalletCards size={14} style={{ marginRight: 4 }} /> Commercial Queue
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("ops-financial-case")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <FileText size={13} style={{ marginRight: 4 }} /> 0% EMI Counselor
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("agent-recovery")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <RotateCcw size={13} style={{ marginRight: 4 }} /> 30d Recovery
+            </Button>
+          </>
+        )}
+
+        {role === "Voice AI" && (
+          <>
+            <Button
+              size="sm"
+              onClick={() => openScreen("voice-campaigns")}
+              style={{ background: "var(--gold)", color: "var(--navy)", fontWeight: 800, fontSize: 12 }}
+            >
+              <Bot size={14} style={{ marginRight: 4 }} /> Voice Campaigns
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("voice-live-monitor")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <Activity size={13} style={{ marginRight: 4 }} /> Live Monitor
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openScreen("voice-confidence")}
+              style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", fontSize: 12 }}
+            >
+              <ShieldCheck size={13} style={{ marginRight: 4 }} /> Review Queue
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function DesktopSidebar({ role, activeId, changeRole, openScreen, openAtlas }: { role: AppRole; activeId: string; changeRole: (role: AppRole) => void; openScreen: (id: string) => void; openAtlas: () => void }) {
@@ -202,12 +1103,55 @@ function PageHeader({ eyebrow, title, description, children }: { eyebrow?: strin
   return <div className="page-header"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h1>{title}</h1>{description && <p className="page-description">{description}</p>}</div>{children && <div className="page-actions">{children}</div>}</div>;
 }
 
-function DesktopScreen({ screen, openScreen, notify, leads, onLeadCreated }: { screen: CrmScreen; openScreen: (id: string) => void; notify: (message: string) => void; leads: DisplayLead[]; onLeadCreated: (lead: DisplayLead) => void }) {
+function DesktopScreen({
+  screen,
+  openScreen,
+  notify,
+  leads,
+  onLeadCreated,
+  onLeadUpdated,
+  onCallLead,
+  onCloseLead,
+  onOpenWhatsApp,
+  onReassignLead,
+  onOpenAsk,
+  onOpenTraining,
+  onScoreLead,
+  onOpenCadence,
+  onOpenDrillDown,
+  onOpenDiagnostic15d,
+  onEditLead,
+  onAddAgent,
+  newAgents,
+}: {
+  screen: CrmScreen;
+  openScreen: (id: string) => void;
+  notify: (message: string) => void;
+  leads: DisplayLead[];
+  onLeadCreated: (lead: DisplayLead) => void;
+  onLeadUpdated?: () => void;
+  onCallLead: (lead: DisplayLead) => void;
+  onCloseLead: (lead: DisplayLead) => void;
+  onOpenWhatsApp?: (lead: DisplayLead) => void;
+  onReassignLead: (leadId: string) => void;
+  onOpenAsk: () => void;
+  onOpenTraining: () => void;
+  onScoreLead?: (lead: DisplayLead) => void;
+  onOpenCadence?: (lead: DisplayLead) => void;
+  onOpenDrillDown?: () => void;
+  onOpenDiagnostic15d?: () => void;
+  onEditLead?: (lead: DisplayLead) => void;
+  onAddAgent?: () => void;
+  newAgents?: any[];
+}) {
   switch (screen.id) {
-    case "agent-my-day": return <AgentWorkspace openScreen={openScreen} leads={leads} />;
-    case "manager-cockpit": return <ManagerCockpit openScreen={openScreen} />;
-    case "agent-my-leads": return <MyLeads openScreen={openScreen} leads={leads} />;
-    case "agent-lead-360": return <Lead360 openScreen={openScreen} />;
+    case "agent-my-day": return <AgentWorkspace openScreen={openScreen} leads={leads} onCallLead={onCallLead} onReassignLead={onReassignLead} />;
+    case "manager-cockpit": return <ManagerCockpit openScreen={openScreen} leads={leads} onCallLead={onCallLead} onReassignLead={onReassignLead} onOpenAsk={onOpenAsk} />;
+    case "agent-my-leads": return <MyLeads openScreen={openScreen} leads={leads} onCallLead={onCallLead} />;
+    case "agent-lead-360": return <Lead360 openScreen={openScreen} leads={leads} onCallLead={onCallLead} onCloseLead={onCloseLead} onOpenWhatsApp={onOpenWhatsApp} onScoreLead={onScoreLead} onOpenCadence={onOpenCadence} />;
+    case "manager-cockpit": return <ManagerCockpit openScreen={openScreen} leads={leads} onCallLead={onCallLead} onReassignLead={onReassignLead} onOpenAsk={onOpenAsk} onAddAgent={onAddAgent} />;
+    case "agent-my-leads": return <MyLeads openScreen={openScreen} leads={leads} onCallLead={onCallLead} onEditLead={onEditLead} />;
+    case "agent-lead-360": return <Lead360 openScreen={openScreen} leads={leads} onCallLead={onCallLead} onCloseLead={onCloseLead} onOpenWhatsApp={onOpenWhatsApp} onScoreLead={onScoreLead} onOpenCadence={onOpenCadence} onEditLead={onEditLead} />;
     case "agent-tasks": return <AgentTasks leads={leads} notify={notify} />;
     case "agent-calendar": return <AgentCalendar leads={leads} notify={notify} />;
     case "agent-recovery": return <AgentRecovery leads={leads} openScreen={openScreen} />;
@@ -215,19 +1159,43 @@ function DesktopScreen({ screen, openScreen, notify, leads, onLeadCreated }: { s
     case "agent-follow-up": return <AgentFollowUp leads={leads} notify={notify} />;
     case "agent-book-appointment": return <AgentBookAppointment leads={leads} notify={notify} />;
     case "agent-post-call-review": return <PostCallReview notify={notify} openScreen={openScreen} />;
+    case "manager-assignment": return <ManagerAssignmentBoard openScreen={openScreen} leads={leads} notify={notify} onLeadCreated={onLeadCreated} onLeadUpdated={onLeadUpdated} />;
     case "manager-funnel": return <UniversalFunnelDashboard openScreen={openScreen} />;
-    case "manager-conversation": return <UniversalConversationIntelligence />;
-    case "owner-founder": return <FounderDashboard openScreen={openScreen} />;
-    case "owner-drill-down": return <UniversalDrillDownExplorer />;
-    case "owner-diagnostic": return <UniversalDiagnosticReview notify={notify} />;
+    case "manager-conversation": return <UniversalConversationIntelligence onOpenAsk={onOpenAsk} />;
+    case "manager-daily-conversion": return <ManagerDailyConversionScreen notify={notify} />;
+    case "manager-agent-scorecard": return <ManagerAgentScorecardScreen notify={notify} />;
+    case "manager-agent-scorecard": return <ManagerAgentScorecardScreen notify={notify} onAddAgent={onAddAgent} newAgents={newAgents} />;
+    case "manager-escalations": return <ManagerEscalationsScreen notify={notify} />;
+    case "owner-founder": return <FounderDashboard openScreen={openScreen} leads={leads} onOpenAsk={onOpenAsk} onOpenDiagnostic15d={onOpenDiagnostic15d} onOpenDrillDown={onOpenDrillDown} />;
+    case "owner-founder": return <FounderDashboard openScreen={openScreen} leads={leads} notify={notify} onOpenAsk={onOpenAsk} onOpenDiagnostic15d={onOpenDiagnostic15d} onOpenDrillDown={onOpenDrillDown} />;
+    case "owner-drill-down": return <UniversalDrillDownExplorer onOpenInteractive={onOpenDrillDown} />;
+    case "owner-diagnostic": return <UniversalDiagnosticReview notify={notify} onOpenInteractive={onOpenDiagnostic15d} />;
+    case "owner-cohort": return <OwnerCohortScreen notify={notify} />;
+    case "owner-source-roi": return <OwnerSourceRoiScreen notify={notify} />;
+    case "owner-report-library": return <OwnerReportLibraryScreen notify={notify} />;
+    case "ops-appointments": return <OpsAppointmentsScreen notify={notify} />;
+    case "ops-doctor-allocation": return <OpsDoctorAllocationScreen notify={notify} />;
+    case "ops-no-show": return <OpsNoShowScreen notify={notify} />;
+    case "ops-financial-queue": return <OpsFinancialQueueScreen notify={notify} />;
+    case "ops-admission-queue": return <OpsAdmissionQueueScreen notify={notify} />;
+    case "ops-handoff": return <OpsHandoffScreen notify={notify} />;
     case "ops-financial-case": return <UniversalCommercialCase notify={notify} />;
+    case "admin-sources": return <AdminSourcesScreen notify={notify} />;
+    case "admin-telephony": return <AdminTelephonyScreen notify={notify} />;
+    case "admin-audit": return <AdminAuditScreen notify={notify} />;
     case "admin-ai-safety": return <UniversalAiSafety notify={notify} />;
     case "admin-control-tower": return <AdminControlTower openScreen={openScreen} />;
     case "admin-follow-up-ageing": return <AdminFollowUpAgeing openScreen={openScreen} leads={leads} />;
     case "voice-overview": return <UniversalVoiceOverview openScreen={openScreen} />;
+    case "voice-campaigns": return <VoiceCampaignsScreen notify={notify} />;
+    case "voice-agent-config": return <VoiceAgentConfigScreen notify={notify} />;
+    case "voice-runs": return <VoiceRunsScreen notify={notify} />;
+    case "voice-live-monitor": return <VoiceLiveMonitorScreen notify={notify} />;
+    case "voice-confidence": return <VoiceConfidenceScreen notify={notify} />;
+    case "voice-analytics": return <VoiceAnalyticsScreen notify={notify} />;
     case "voice-call-detail": return <UniversalVoiceCallDetail notify={notify} />;
     case "__legacy-funnel": return <FunnelDashboard openScreen={openScreen} />;
-    case "__legacy-conversation": return <ConversationIntelligence />;
+    case "__legacy-conversation": return <ConversationIntelligence onOpenAsk={onOpenAsk} />;
     case "__legacy-drill": return <DrillDownExplorer />;
     case "__legacy-diagnostic": return <DiagnosticReview notify={notify} />;
     case "__legacy-commercial": return <FinancialCase notify={notify} />;
@@ -235,23 +1203,59 @@ function DesktopScreen({ screen, openScreen, notify, leads, onLeadCreated }: { s
     case "__legacy-voice-overview": return <VoiceOverview openScreen={openScreen} />;
     case "__legacy-voice-detail": return <VoiceCallDetail notify={notify} />;
     case "__legacy-generic": return <GenericDesktopScreen screen={screen} openScreen={openScreen} notify={notify} />;
-    default: return <UniversalGenericDesktopScreen screen={screen} openScreen={openScreen} notify={notify} leads={leads} onLeadCreated={onLeadCreated} />;
+    default: return <UniversalGenericDesktopScreen screen={screen} openScreen={openScreen} notify={notify} leads={leads} onLeadCreated={onLeadCreated} onLeadUpdated={onLeadUpdated} />;
   }
 }
 
-function AgentWorkspace({ openScreen, leads }: { openScreen: (id: string) => void; leads: DisplayLead[] }) {
-  const queue = leads.slice(0, 4).map((lead) => [lead.name, lead.stage, lead.next, lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown", lead.last] as const);
+function AgentWorkspace({
+  openScreen,
+  leads,
+  onCallLead,
+  onReassignLead,
+}: {
+  openScreen: (id: string) => void;
+  leads: DisplayLead[];
+  onCallLead: (lead: DisplayLead) => void;
+  onReassignLead: (leadId: string) => void;
+}) {
+  const queue = leads.slice(0, 4).map((lead) => [lead.name, lead.stage, lead.next, lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown", lead.last, lead] as const);
+  const targetLead = leads[0] || initialSampleLeads[0];
+
   return <div className="page-stack agent-simple-page">
     <PageHeader eyebrow={`Telecalling workspace · ${formatIndiaDate()}`} title="Your work, in order." description="Call the next person, record the outcome, and move to the next commitment.">
       <Button variant="outline" onClick={() => openScreen("agent-new-lead")}><Plus /> Add lead</Button>
     </PageHeader>
+
+    {/* PRD 4: 5-Minute Uncalled SLA Banner with 15m Reassignment Action */}
+    <div className="sla-alert-pulse">
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <AlarmClock size={24} style={{ color: "var(--burgundy)", flexShrink: 0 }} />
+        <div>
+          <strong style={{ color: "var(--burgundy)", display: "block", fontSize: 13 }}>
+            🚨 PRD 4: 5-Minute Uncalled Lead SLA Warning
+          </strong>
+          <span style={{ fontSize: 12, color: "var(--navy)" }}>
+            Lead <strong>{targetLead.name}</strong> ({targetLead.source}) has been uncalled for <strong>18 minutes</strong>! (15m SLA breach threshold exceeded)
+          </span>
+        </div>
+      </div>
+      <Button
+        variant="destructive"
+        size="sm"
+        onClick={() => onReassignLead(targetLead.id)}
+        style={{ fontWeight: 600, fontSize: 12, whiteSpace: "nowrap" }}
+      >
+        ⚡ Reassign Lead (15m SLA Breach)
+      </Button>
+    </div>
+
     <section className="agent-focus-card">
       <div className="agent-focus-label"><span className="live-dot" /> Next best action</div>
       <div className="agent-focus-main">
-        <div className="large-avatar">LN</div>
-        <div><span className="agent-focus-overline">Hot lead · SLA overdue</span><h2>Lakshmi Narayana</h2><p>Enterprise CRM rollout · Hyderabad · Google Search</p></div>
-        <div className="agent-focus-context"><span>Last conversation</span><b>Asked for pricing and implementation plan</b><small>18 minutes ago · 4m 38s</small></div>
-        <Button className="gold-action" onClick={() => openScreen("mobile-active-call")}><PhoneCall /> Call now</Button>
+        <div className="large-avatar">{targetLead.name.slice(0, 2).toUpperCase()}</div>
+        <div><span className="agent-focus-overline">Hot lead · SLA overdue</span><h2>{targetLead.name}</h2><p>Orthopedic Treatment · Hyderabad · {targetLead.source}</p></div>
+        <div className="agent-focus-context"><span>Last conversation</span><b>Asked for package pricing and Saturday consult</b><small>18 minutes ago · 4m 38s</small></div>
+        <Button className="gold-action" onClick={() => onCallLead(targetLead)}><PhoneCall /> Call now</Button>
       </div>
       <div className="agent-focus-foot"><span><Sparkles size={15} /> AI context ready</span><button onClick={() => openScreen("agent-lead-360")}>Open Lead 360 <ChevronRight size={15} /></button></div>
     </section>
@@ -263,7 +1267,7 @@ function AgentWorkspace({ openScreen, leads }: { openScreen: (id: string) => voi
     </div>
     <div className="agent-simple-grid">
       <section className="panel simple-queue-panel"><PanelHeader title="Up next" subtitle="Ordered by commitment time and lead intent" action="All leads" onAction={() => openScreen("agent-my-leads")} />
-        {queue.map((row, index) => <button className="simple-call-row" key={row[0]} onClick={() => index === 0 ? openScreen("mobile-active-call") : openScreen("agent-lead-360")}><span className="queue-order">{String(index + 1).padStart(2,"0")}</span><div><strong>{row[0]}</strong><small>{row[1]}</small></div><Badge variant="outline" className={temperatureClass[row[3]]}>{row[3]}</Badge><div className="simple-call-time"><b>{row[2]}</b><small>{row[4]}</small></div><span className="round-call"><Phone size={16} /></span></button>)}
+        {queue.map((row) => <button className="simple-call-row" key={row[0]} onClick={() => onCallLead(row[5])}><span className="queue-order">📞</span><div><strong>{row[0]}</strong><small>{row[1]}</small></div><Badge variant="outline" className={temperatureClass[row[3]]}>{row[3]}</Badge><div className="simple-call-time"><b>{row[2]}</b><small>{row[4]}</small></div><span className="round-call"><Phone size={16} /></span></button>)}
       </section>
       <aside className="panel agent-checklist"><PanelHeader title="Finish the day clean" subtitle="Only the essentials" />
         {[ ["Calls without outcome", "0", true], ["Follow-ups without next date", "2", false], ["AI drafts waiting for you", "2", false], ["Meetings needing confirmation", "2", false] ].map(([label,value,done]) => <button key={String(label)}><span className={done ? "done" : ""}>{done ? <Check size={14} /> : value}</span><b>{label}</b><ChevronRight size={15} /></button>)}
@@ -368,15 +1372,18 @@ function UniversalFunnelDashboard({ openScreen }: { openScreen: (id: string) => 
   </div>;
 }
 
-function UniversalConversationIntelligence() {
+function UniversalConversationIntelligence({ onOpenAsk }: { onOpenAsk?: () => void }) {
   return <div className="page-stack">
-    <PageHeader eyebrow="Ask your CRM" title="Conversation intelligence" description="Ask plain-language questions across calls, transcripts, outcomes, and complete customer journeys."><Button variant="outline"><Download /> Export findings</Button></PageHeader>
-    <section className="conversation-hero panel"><div className="conversation-prompt"><div className="ai-orb large"><Sparkles size={23} /></div><div><span>Ask TRH360 Intelligence</span><textarea defaultValue="Why did enterprise conversions fall in Hyderabad during the last 15 days?" rows={2} /></div><Button className="primary-action"><ArrowRight /></Button></div><div className="prompt-suggestions"><button>Which agents misclassified Hot leads?</button><button>Show pricing objections with evidence</button><button>Compare Google vs Meta lead quality</button></div></section>
+    <PageHeader eyebrow="Ask your CRM" title="Conversation intelligence" description="Ask plain-language questions across calls, transcripts, outcomes, and complete customer journeys.">
+      <Button variant="outline" onClick={onOpenAsk}><Search size={14} style={{ marginRight: 4 }} /> Multilingual Ask</Button>
+      <Button variant="outline"><Download /> Export findings</Button>
+    </PageHeader>
+    <section className="conversation-hero panel"><div className="conversation-prompt"><div className="ai-orb large"><Sparkles size={23} /></div><div><span>Ask TRH360 Intelligence (Telugu · Hindi · English)</span><textarea defaultValue="Why did enterprise conversions fall in Hyderabad during the last 15 days?" rows={2} onClick={() => onOpenAsk?.()} /></div><Button className="primary-action" onClick={() => onOpenAsk?.()}><ArrowRight /></Button></div><div className="prompt-suggestions"><button onClick={() => onOpenAsk?.()}>Which agents misclassified Hot leads?</button><button onClick={() => onOpenAsk?.()}>Show pricing objections with evidence</button><button onClick={() => onOpenAsk?.()}>Compare Google vs Meta lead quality</button></div></section>
     <div className="content-grid intelligence-grid"><section className="panel answer-panel"><div className="answer-heading"><Sparkles size={18} /><div><span>Evidence-backed answer</span><small>Analyzed 418 leads · 1,206 calls</small></div></div><h2>Conversion fell after qualification—not because lead quality declined.</h2><p>Qualified-to-meeting conversion decreased from <b>58% to 41%</b>. The strongest contributing pattern was delayed commercial follow-up after leads asked about pricing and implementation.</p><div className="finding-list"><Finding number="01" title="Pricing follow-up was 19 hours slower" text="31 high-intent leads requested pricing or payment details. Only 12 received them in the same working day." evidence="64 call moments" /><Finding number="02" title="Seven Hot leads were marked Warm" text="Transcript language showed explicit timelines and meeting intent, but agents selected a lower temperature." evidence="7 journeys" /><Finding number="03" title="Campaign promise and opening script diverged" text="The campaign promises a guided implementation review. Agents did not acknowledge it in 68% of connected calls." evidence="46 calls" /></div></section><aside className="panel evidence-rail"><PanelHeader title="Source evidence" subtitle="Open any citation" />{[["Call · Lakshmi N.","00:24","Pricing requested"],["Call · Ramesh K.","01:12","Timeline confirmed"],["WhatsApp · Anitha","18h delay","Proposal sent"],["Campaign · Meta ENT-04","Ad","Implementation review"]].map((row)=><button className="citation-card" key={row[0]}><div><FileAudio size={16} /><span><strong>{row[0]}</strong><small>{row[2]}</small></span></div><b>{row[1]}</b></button>)}<div className="confidence-card"><div><span>Answer confidence</span><strong>92%</strong></div><Progress value={92} /><small>Claims with insufficient evidence are clearly marked.</small></div></aside></div>
   </div>;
 }
 
-function UniversalDrillDownExplorer() {
+function UniversalDrillDownExplorer({ onOpenInteractive }: { onOpenInteractive?: () => void }) {
   const levels=["Date","Business unit","Product / service","Source","Campaign","Agent","Stage","Reason","Lead"];
   const campaigns = [
     ["Enterprise CRM · Telugu · 04","286","73%","61%","34%","62%","5.2%","Follow-up leak"],
@@ -384,11 +1391,11 @@ function UniversalDrillDownExplorer() {
     ["Product Demo · Retargeting","118","81%","72%","46%","59%","6.7%","Price friction"],
     ["Weekend Enquiry · South","92","64%","57%","29%","48%","3.2%","SLA breach"],
   ];
-  return <div className="page-stack"><PageHeader eyebrow="Evidence explorer" title="Nine-level drill-down" description="Move from business outcome to a single lead, call, and timestamp without losing context."><Button variant="outline"><Download /> Export current view</Button></PageHeader><section className="panel drill-panel"><div className="drill-path">{levels.map((level,index)=><button className={index<4?"complete":index===4?"active":""} key={level}><span>{index+1}</span>{level}{index<levels.length-1&&<ChevronRight size={13} />}</button>)}</div><div className="drill-title"><div><span>Current level · Campaign</span><h2>Meta South · Enterprise CRM</h2><p>Business unit: Enterprise sales · Service: CRM implementation · 22 Aug–05 Sep</p></div><div><span>Conversion</span><strong>5.8%</strong><small>-2.1 pts vs benchmark</small></div></div><div className="drill-table"><div className="drill-row head"><span>Campaign / ad set</span><span>Leads</span><span>Connect</span><span>Qualified</span><span>Meetings</span><span>Proposals</span><span>Converted</span><span>Signal</span></div>{campaigns.map((row,index)=><button className="drill-row" key={row[0]}>{row.slice(0,7).map((cell)=><span key={cell}>{cell}</span>)}<span><Badge variant="outline" className={index===1?"status-positive":"status-warm"}>{row[7]}</Badge></span></button>)}</div></section><div className="drill-footnote"><ShieldCheck size={16} /><span>Every metric is reversible: click through to exact lead records and conversation evidence.</span></div></div>;
+  return <div className="page-stack"><PageHeader eyebrow="Evidence explorer" title="Nine-level drill-down" description="Move from business outcome to a single lead, call, and timestamp without losing context."><Button variant="outline"><Download /> Export current view</Button>{onOpenInteractive && <Button className="primary-action" onClick={onOpenInteractive}><GitBranch size={14} style={{ marginRight: 4 }} /> Interactive 9-Level Tree</Button>}</PageHeader><section className="panel drill-panel"><div className="drill-path">{levels.map((level,index)=><button className={index<4?"complete":index===4?"active":""} key={level}><span>{index+1}</span>{level}{index<levels.length-1&&<ChevronRight size={13} />}</button>)}</div><div className="drill-title"><div><span>Current level · Campaign</span><h2>Meta South · Enterprise CRM</h2><p>Business unit: Enterprise sales · Service: CRM implementation · 22 Aug–05 Sep</p></div><div><span>Conversion</span><strong>5.8%</strong><small>-2.1 pts vs benchmark</small></div></div><div className="drill-table"><div className="drill-row head"><span>Campaign / ad set</span><span>Leads</span><span>Connect</span><span>Qualified</span><span>Meetings</span><span>Proposals</span><span>Converted</span><span>Signal</span></div>{campaigns.map((row,index)=><button className="drill-row" key={row[0]}>{row.slice(0,7).map((cell)=><span key={cell}>{cell}</span>)}<span><Badge variant="outline" className={index===1?"status-positive":"status-warm"}>{row[7]}</Badge></span></button>)}</div></section><div className="drill-footnote"><ShieldCheck size={16} /><span>Every metric is reversible: click through to exact lead records and conversation evidence.</span></div></div>;
 }
 
-function UniversalDiagnosticReview({ notify }: { notify: (message: string) => void }) {
-  return <div className="page-stack"><PageHeader eyebrow="AI-prepared · Human approved" title="15-day diagnostic memo" description="A decision-ready summary of what changed, why it changed, and what to do next."><Badge variant="outline" className="ai-draft-badge"><Sparkles /> Draft · Not shared</Badge></PageHeader><div className="memo-layout"><article className="memo-paper"><div className="memo-head"><div><span>TRH360 DIAGNOSTIC</span><h1>Lead Conversion Review</h1><p>22 August–05 September 2026 · Northstar Growth Workspace</p></div><div className="brand-mark">T</div></div><hr /><section><span className="memo-section-no">01</span><h2>Executive conclusion</h2><p>Demand quality remained stable, while conversion weakened at the qualified-to-meeting stage. The decline is operational and recoverable; increasing acquisition spend now would amplify leakage.</p></section><section><span className="memo-section-no">02</span><h2>Material findings</h2><ol><li><b>Commercial follow-up delay:</b> 31 high-intent leads waited a median of 19 hours for pricing or payment information.</li><li><b>Temperature mismatch:</b> Seven calls expressed clear timelines but were recorded as Warm rather than Hot.</li><li><b>Weekend SLA:</b> Sunday leads had a 12m 42s median first-touch time versus 3m 18s on weekdays.</li></ol></section><section><span className="memo-section-no">03</span><h2>Recommended decisions</h2><div className="memo-action"><strong>Within 24 hours</strong><p>Run a recovery queue for 84 leads with resolvable, evidenced objections.</p></div><div className="memo-action"><strong>Within 7 days</strong><p>Add weekend commercial-support coverage and align the opening script to campaign promises.</p></div><div className="memo-action"><strong>Before scaling spend</strong><p>Restore qualified-to-meeting conversion above 52% for seven consecutive days.</p></div></section><footer>Generated from 2,864 lead journeys, 4,912 call attempts, and 1,206 transcripts. Every material claim links to evidence.</footer></article><aside className="memo-review panel"><h2>Review & publish</h2><p>AI can prepare this memo. Only an authorized leader can publish or schedule it.</p><div className="review-check"><Check size={15} /><span>All material claims have evidence</span></div><div className="review-check"><Check size={15} /><span>Personally identifying data is redacted</span></div><div className="review-check"><Check size={15} /><span>Recommendations do not change CRM records</span></div><label>Reviewer note<textarea rows={4} placeholder="Add context before publishing…" /></label><Button variant="outline" className="full-width" onClick={() => notify("Memo downloaded as PDF")}>Download PDF</Button><Button className="primary-action full-width" onClick={() => notify("Diagnostic memo approved and published")}>Approve & publish</Button></aside></div></div>;
+function UniversalDiagnosticReview({ notify, onOpenInteractive }: { notify: (message: string) => void; onOpenInteractive?: () => void }) {
+  return <div className="page-stack"><PageHeader eyebrow="AI-prepared · Human approved" title="15-day diagnostic memo" description="A decision-ready summary of what changed, why it changed, and what to do next."><Badge variant="outline" className="ai-draft-badge"><Sparkles /> Draft · Not shared</Badge>{onOpenInteractive && <Button className="primary-action" onClick={onOpenInteractive} style={{ marginLeft: 8 }}><Sparkles size={14} style={{ marginRight: 4 }} /> Interactive 15-Day Model</Button>}</PageHeader><div className="memo-layout"><article className="memo-paper"><div className="memo-head"><div><span>TRH360 DIAGNOSTIC</span><h1>Lead Conversion Review</h1><p>22 August–05 September 2026 · Northstar Growth Workspace</p></div><div className="brand-mark">T</div></div><hr /><section><span className="memo-section-no">01</span><h2>Executive conclusion</h2><p>Demand quality remained stable, while conversion weakened at the qualified-to-meeting stage. The decline is operational and recoverable; increasing acquisition spend now would amplify leakage.</p></section><section><span className="memo-section-no">02</span><h2>Material findings</h2><ol><li><b>Commercial follow-up delay:</b> 31 high-intent leads waited a median of 19 hours for pricing or payment information.</li><li><b>Temperature mismatch:</b> Seven calls expressed clear timelines but were recorded as Warm rather than Hot.</li><li><b>Weekend SLA:</b> Sunday leads had a 12m 42s median first-touch time versus 3m 18s on weekdays.</li></ol></section><section><span className="memo-section-no">03</span><h2>Recommended decisions</h2><div className="memo-action"><strong>Within 24 hours</strong><p>Run a recovery queue for 84 leads with resolvable, evidenced objections.</p></div><div className="memo-action"><strong>Within 7 days</strong><p>Add weekend commercial-support coverage and align the opening script to campaign promises.</p></div><div className="memo-action"><strong>Before scaling spend</strong><p>Restore qualified-to-meeting conversion above 52% for seven consecutive days.</p></div></section><footer>Generated from 2,864 lead journeys, 4,912 call attempts, and 1,206 transcripts. Every material claim links to evidence.</footer></article><aside className="memo-review panel"><h2>Review & publish</h2><p>AI can prepare this memo. Only an authorized leader can publish or schedule it.</p><div className="review-check"><Check size={15} /><span>All material claims have evidence</span></div><div className="review-check"><Check size={15} /><span>Personally identifying data is redacted</span></div><div className="review-check"><Check size={15} /><span>Recommendations do not change CRM records</span></div><label>Reviewer note<textarea rows={4} placeholder="Add context before publishing…" /></label><Button variant="outline" className="full-width" onClick={() => notify("Memo downloaded as PDF")}>Download PDF</Button><Button className="primary-action full-width" onClick={() => notify("Diagnostic memo approved and published")}>Approve & publish</Button></aside></div></div>;
 }
 
 function UniversalCommercialCase({ notify }: { notify: (message: string) => void }) {
@@ -416,12 +1423,12 @@ function UniversalVoiceCallDetail({ notify }: { notify: (message: string) => voi
   return <div className="page-stack"><div className="back-row"><button><ChevronLeft size={16} /> Voice AI calls</button><span>VAI-929184</span></div><section className="voice-call-hero"><div className="voice-call-title"><div className="ai-orb large"><Bot size={22} /></div><div><span className="eyebrow">Completed · Today, 11:08 AM</span><h1>Voice AI call with Ramesh Kumar</h1><p>+91 97042 61829 · Telugu · 6m 12s · Renewal Outreach Telugu</p></div></div><div><Badge variant="outline" className="status-positive">Qualified</Badge><Button variant="outline"><Download /> Export</Button></div></section><div className="review-grid"><section className="panel transcript-panel"><PanelHeader title="Recording & transcript" subtitle="Voice agent: Asha · Speaker-labelled" /><AudioPlayer /><div className="transcript-body"><TranscriptLine speaker="Asha · AI" time="00:06" text="Namaste Ramesh garu. You asked about renewing your annual service plan. May I record this call so our team can support you?" /><TranscriptLine speaker="Lead" time="00:18" text="Yes. Our plan expires this month and I need the updated pricing before Friday." evidence /><TranscriptLine speaker="Asha · AI" time="01:04" text="Would a plan comparison help, or would you prefer to speak with a product specialist?" /><TranscriptLine speaker="Lead" time="01:18" text="A competitor sent a quote. I want to compare coverage with your specialist tomorrow." evidence /><TranscriptLine speaker="Asha · AI" time="04:46" text="I can ask a human account coordinator to call today and arrange that review. Is 3:00 PM convenient?" /></div></section><aside className="panel structured-remark"><div className="remark-heading"><div><span className="card-kicker">AI extraction</span><h2>Review before CRM update</h2></div><Badge variant="outline" className="ai-draft-badge">94% confidence</Badge></div><RemarkField number="01" label="Need" value="Renew annual service plan with updated coverage." /><RemarkField number="02" label="Urgency" value="Decision required before Friday." evidence="Lead · 00:18" /><RemarkField number="03" label="Primary objection" value="Competitor quote requires a value comparison." /><RemarkField number="04" label="Handoff commitment" value="Human account coordinator callback today at 3:00 PM." /><div className="extraction-flags"><span><Check size={13} /> Consent captured · 00:18</span><span><Check size={13} /> Phone mapped to existing lead</span><span><Check size={13} /> No conflicting fields detected</span></div><div className="review-actions"><Button variant="outline" onClick={()=>notify("Voice AI call sent to manager review")}>Escalate</Button><Button className="primary-action" onClick={()=>notify("Voice AI extraction accepted into Lead 360")}><Check /> Accept into CRM</Button></div></aside></div></div>;
 }
 
-function UniversalGenericDesktopScreen({ screen, openScreen, notify, leads, onLeadCreated }: { screen: CrmScreen; openScreen: (id: string) => void; notify: (message: string) => void; leads: DisplayLead[]; onLeadCreated: (lead: DisplayLead) => void }) {
+function UniversalGenericDesktopScreen({ screen, openScreen, notify, leads, onLeadCreated, onLeadUpdated }: { screen: CrmScreen; openScreen: (id: string) => void; notify: (message: string) => void; leads: DisplayLead[]; onLeadCreated: (lead: DisplayLead) => void; onLeadUpdated?: () => void }) {
   const iconByKind: Record<string,LucideIcon>={dashboard:LayoutDashboard,list:ListFilter,detail:FileText,form:Plus,analytics:BarChart3,config:Settings,workflow:Workflow,review:ShieldCheck};
   const Icon=iconByKind[screen.kind];
   if(screen.kind==="config") return <UniversalGenericConfig screen={screen} notify={notify}/>;
   if(screen.kind==="analytics") return <UniversalGenericAnalytics screen={screen}/>;
-  if(screen.kind==="form"||screen.kind==="workflow") return <UniversalGenericWorkflow screen={screen} notify={notify} openScreen={openScreen} onLeadCreated={onLeadCreated}/>;
+  if(screen.kind==="form"||screen.kind==="workflow") return <UniversalGenericWorkflow screen={screen} notify={notify} openScreen={openScreen} leads={leads} onLeadCreated={onLeadCreated} onLeadUpdated={onLeadUpdated}/>;
   return <div className="page-stack"><PageHeader eyebrow={`${screen.role} · ${screen.module}`} title={screen.title} description={screen.description}><Button variant="outline"><Download /> Export</Button><Button className="primary-action" onClick={()=>notify(`${screen.title} action completed`)}><Plus /> New action</Button></PageHeader>{screen.kind==="dashboard"&&<div className="metric-grid four"><MetricCard label="In scope" value="2,864" delta="+8.2%" detail="current period" icon={Icon}/><MetricCard label="Needs action" value="84" delta="2.9%" detail="of total records" icon={CircleAlert}/><MetricCard label="On track" value="91.4%" delta="+3.1%" detail="vs benchmark" icon={CircleCheck}/><MetricCard label="Evidence coverage" value="96%" delta="Strong" detail="auditable records" icon={ShieldCheck}/></div>}<section className="panel"><PanelHeader title={screen.kind==="detail"?"Complete record":"Prioritized worklist"} subtitle="Context, ownership, and next actions stay visible" />{screen.kind==="detail"?<div className="generic-detail"><div><span className="card-kicker">Record overview</span><h2>One permanent journey</h2><p>This view links source, calls, messages, commitments, status changes, meetings, commercial work, and outcomes into one auditable chain.</p><div className="fact-grid"><KeyValue label="Source" value="Google · Campaign 04"/><KeyValue label="Owner" value="Sravani K."/><KeyValue label="Last meaningful touch" value="Today · 10:42 AM"/><KeyValue label="Next commitment" value="Today · 4:30 PM"/></div></div><div className="generic-activity"><TimelineItem icon={PhoneCall} tone="navy" title="Meaningful call" time="Today · 10:42 AM" meta="Recorded · Transcript ready" body="Intent, objection, and commitment captured." action="Open evidence"/><TimelineItem icon={History} tone="muted" title="Status updated" time="Yesterday · 5:16 PM" meta="Warm → Hot · Sravani K." body="Reason and human author preserved in audit trail." action="View change"/></div></div>:<LeadTable openScreen={openScreen} leads={leads}/>}</section></div>;
 }
 
@@ -442,6 +1449,26 @@ function CreateLeadWorkflow({ openScreen, onLeadCreated, notify }: { openScreen:
   const [source, setSource] = useState("manual");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const saveLocally = () => {
+    const fallbackId = `TRH-${Math.floor(10000 + Math.random() * 90000)}`;
+    const fallbackLead: DisplayLead = {
+      id: fallbackId,
+      apiId: fallbackId,
+      name: name.trim(),
+      phone: phone.trim(),
+      stage: "received",
+      qualification: "warm",
+      agent: "Sravani K.",
+      source: source.trim() || "Manual",
+      next: "First call pending",
+      last: "Just now",
+      createdAt: new Date().toISOString(),
+    };
+    onLeadCreated(fallbackLead);
+    notify?.(`Lead "${name.trim()}" saved locally to device queue.`);
+    openScreen("agent-my-leads");
+  };
 
   const saveLead = async () => {
     if (!name.trim()) {
@@ -470,22 +1497,471 @@ function CreateLeadWorkflow({ openScreen, onLeadCreated, notify }: { openScreen:
     }
   };
 
-  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace · New record" title="Create lead" description="Add a lead to the shared CRM queue."><Button variant="outline" onClick={() => openScreen("agent-my-leads")}>Cancel</Button><Button className="primary-action" onClick={saveLead} disabled={saving}><Check /> {saving ? "Saving..." : "Save lead"}</Button></PageHeader><div className="workflow-layout"><section className="panel form-panel"><div className="form-section"><span>01</span><div><h2>Lead identity</h2><p>Enter the contact details required for the first follow-up.</p></div></div><div className="form-grid"><label className="field"><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></label><label className="field"><span>Mobile number</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" /></label><label className="field"><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" /></label><label className="field"><span>Source</span><input value={source} onChange={(event) => setSource(event.target.value)} placeholder="Manual, website, campaign" /></label></div>{error && <p role="alert">{error}</p>}</section><aside className="panel workflow-check"><div className="ai-orb"><Sparkles size={18}/></div><h2>Before you save</h2><p>The lead will be saved to the backend and appear in My Leads.</p><div><Check size={14}/><span>Name is required</span></div><div><Check size={14}/><span>Source is preserved</span></div><div><Check size={14}/><span>Audit-ready created timestamp</span></div></aside></div></div>;
+  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace · New record" title="Create lead" description="Add a lead to the shared CRM queue."><Button variant="outline" onClick={() => openScreen("agent-my-leads")}>Cancel</Button><Button className="primary-action" onClick={saveLead} disabled={saving}><Check /> {saving ? "Saving..." : "Save lead"}</Button></PageHeader><div className="workflow-layout"><section className="panel form-panel"><div className="form-section"><span>01</span><div><h2>Lead identity</h2><p>Enter the contact details required for the first follow-up.</p></div></div><div className="form-grid"><label className="field"><span>Name</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></label><label className="field"><span>Mobile number</span><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Phone number" /></label><label className="field"><span>Email</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email address" /></label><label className="field"><span>Source</span><input value={source} onChange={(event) => setSource(event.target.value)} placeholder="Manual, website, campaign" /></label></div>{error && <div style={{ marginTop: 14, padding: "12px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}><span style={{ color: "#991b1b", fontSize: 13, fontWeight: 600 }}>{error}</span><div style={{ display: "flex", gap: 8 }}><Button size="sm" variant="outline" type="button" onClick={saveLead}>Retry server save</Button><Button size="sm" type="button" onClick={saveLocally}>Save locally & proceed</Button></div></div>}</section><aside className="panel workflow-check"><div className="ai-orb"><Sparkles size={18}/></div><h2>Before you save</h2><p>The lead will be saved to the backend and appear in My Leads.</p><div><Check size={14}/><span>Name is required</span></div><div><Check size={14}/><span>Source is preserved</span></div><div><Check size={14}/><span>Audit-ready created timestamp</span></div></aside></div></div>;
 }
 
-function UniversalGenericWorkflow({ screen, notify, openScreen, onLeadCreated }: { screen: CrmScreen; notify: (message: string) => void; openScreen: (id: string) => void; onLeadCreated: (lead: DisplayLead) => void }) {
+function ManagerAssignmentBoard({
+  openScreen,
+  leads = [],
+  notify,
+  onLeadCreated,
+  onLeadUpdated,
+}: {
+  openScreen: (id: string) => void;
+  leads?: DisplayLead[];
+  notify: (message: string) => void;
+  onLeadCreated: (lead: DisplayLead) => void;
+  onLeadUpdated?: () => void;
+}) {
+  const lakshmiLead = leads.find((l) => l.id === "TRH-24190" || l.name.toLowerCase().includes("lakshmi"));
+  const initialLead = lakshmiLead || leads[0] || null;
+  const [selectedLeadId, setSelectedLeadId] = useState<string>(initialLead?.id || "TRH-24190");
+  const [name, setName] = useState(initialLead ? `${initialLead.name} · ${initialLead.id}` : "Lakshmi · TRH-24190");
+  const [phone, setPhone] = useState(initialLead?.phone || "+91 98491 22618");
+  const [department, setDepartment] = useState("Enterprise sales");
+  const [productService, setProductService] = useState(initialLead?.source || "Enterprise CRM");
+  const [status, setStatus] = useState("Follow-up required");
+  const [reason, setReason] = useState("Stakeholder confirmation pending");
+  const [nextDate, setNextDate] = useState("05 Sep 2026 · 4:30 PM");
+  const [owner, setOwner] = useState(initialLead?.agent || "Sravani K.");
+  const [note, setNote] = useState(
+    "Finance director Priya is the final decision-maker. Confirm her availability and send the written commercial scope before the next call."
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSelectLead = (id: string) => {
+    setSelectedLeadId(id);
+    if (id === "new") {
+      setName("");
+      setPhone("");
+      setDepartment("Enterprise sales");
+      setProductService("Enterprise CRM");
+      setStatus("received");
+      setOwner("Sravani K.");
+      setReason("New patient registration");
+      setNote("");
+    } else {
+      const match = leads.find((l) => l.id === id);
+      if (match) {
+        setName(`${match.name} · ${match.id}`);
+        setPhone(match.phone || "");
+        setDepartment((match as any).department || "Enterprise sales");
+        setProductService(match.source || "Enterprise CRM");
+        setStatus(match.stage === "received" ? "received" : "Follow-up required");
+        setOwner(match.agent || "Sravani K.");
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (selectedLeadId && selectedLeadId !== "new") {
+      const match = leads.find((l) => l.id === selectedLeadId);
+      if (match && (!name || name === "Lakshmi · TRH-24190")) {
+        setName(`${match.name} · ${match.id}`);
+        setPhone(match.phone || "");
+        setDepartment((match as any).department || "Enterprise sales");
+        setProductService(match.source || "Enterprise CRM");
+        setStatus(match.stage === "received" ? "received" : "Follow-up required");
+        setOwner(match.agent || "Sravani K.");
+      }
+    }
+  }, [leads, selectedLeadId]);
+
+  const handleAutoAssign = (mode: "round-robin" | "least-loaded") => {
+    const agents = ["Sravani K.", "Anil Kumar", "Divya M.", "Kiran Reddy"];
+    if (mode === "least-loaded") {
+      const counts: Record<string, number> = {};
+      agents.forEach((a) => {
+        const firstName = a.split(" ")[0].toLowerCase();
+        counts[a] = leads.filter((l) => l.agent.toLowerCase().includes(firstName)).length;
+      });
+      const sorted = [...agents].sort((a, b) => counts[a] - counts[b]);
+      setOwner(sorted[0]);
+      notify(`Least-loaded agent selected: ${sorted[0]} (${counts[sorted[0]]} active leads)`);
+    } else {
+      const currIdx = agents.findIndex((a) => a.toLowerCase().includes(owner.toLowerCase()));
+      const nextIdx = (currIdx + 1) % agents.length;
+      setOwner(agents[nextIdx]);
+      notify(`Round-robin assigned to: ${agents[nextIdx]}`);
+    }
+  };
+
+  const handleSaveAndContinue = async () => {
+    if (!name.trim()) {
+      setError("Please enter the patient / lead name.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const idMatch = name.match(/TRH-\d+/i)?.[0] || name.match(/[a-f0-9-]{36}/i)?.[0];
+      const matchById = idMatch ? leads.find((l) => l.id.toLowerCase() === idMatch.toLowerCase()) : null;
+
+      const cleanDigits = phone.replace(/\D/g, "");
+      const matchByPhone = cleanDigits.length >= 7
+        ? leads.find((l) => {
+            const lDigits = l.phone.replace(/\D/g, "");
+            return lDigits.length >= 7 && (lDigits.includes(cleanDigits) || cleanDigits.includes(lDigits));
+          })
+        : null;
+
+      const targetLead = (selectedLeadId && selectedLeadId !== "new" && leads.find((l) => l.id === selectedLeadId))
+        || matchById
+        || matchByPhone;
+
+      const cleanName = name.replace(/·?\s*TRH-\d+/i, "").trim() || (targetLead ? targetLead.name : name.trim());
+      const cleanOwner = owner.split(" ")[0]; // "Sravani", "Anil", etc.
+
+      if (targetLead) {
+        await api.updateLead(targetLead.id, {
+          name: cleanName,
+          phone: phone.trim(),
+          ownerId: cleanOwner,
+          department: department.trim(),
+          source: productService.trim(),
+          status: status === "Follow-up required" ? "contacted" : status,
+          qualification: "Hot",
+        });
+        notify(`Lead "${cleanName}" (${targetLead.id}) successfully updated and assigned to ${owner}!`);
+      } else {
+        const res = await api.createLead({
+          name: cleanName,
+          phone: phone.trim() || undefined,
+          department: department.trim(),
+          sourceId: productService.trim() || "Manual",
+          ownerId: cleanOwner,
+          platform: "web",
+          origin: "manual",
+        });
+        onLeadCreated(mapApiLead(res));
+        notify(`New patient "${cleanName}" registered and assigned to ${owner}!`);
+      }
+
+      if (onLeadUpdated) {
+        await onLeadUpdated();
+      }
+      openScreen("agent-my-leads");
+    } catch (err: any) {
+      setError(err?.message || "Failed to update lead. Check network.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="page-stack">
+      <PageHeader
+        eyebrow="MANAGER · GUIDED WORKFLOW"
+        title="Assignment board"
+        description="Guided workflow that preserves context across teams and lifecycle stages."
+      >
+        <Button variant="outline" onClick={() => openScreen("manager-cockpit")}>
+          Cancel
+        </Button>
+        <Button variant="outline" onClick={() => notify(`Draft saved locally for ${name}`)}>
+          Save draft
+        </Button>
+        <Button className="primary-action" onClick={handleSaveAndContinue} disabled={saving}>
+          <Check /> {saving ? "Saving to database..." : "Save & continue"}
+        </Button>
+      </PageHeader>
+
+      <div className="workflow-layout">
+        <section className="panel form-panel">
+          <div style={{ marginBottom: 16, padding: "10px 14px", background: "rgba(11,37,69,0.04)", borderRadius: 8, display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)" }}>Choose Patient Record:</span>
+            <select
+              style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13, fontWeight: 600, background: "#ffffff" }}
+              value={selectedLeadId}
+              onChange={(e) => handleSelectLead(e.target.value)}
+            >
+              {leads.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} · {l.id} ({l.phone || "No phone"}) — Assigned: {l.agent}
+                </option>
+              ))}
+              <option value="new">+ Register & Assign New Patient</option>
+            </select>
+          </div>
+
+          <div className="form-section">
+            <span>01</span>
+            <div>
+              <h2>Identity & context</h2>
+              <p>Keep this work connected to the permanent lead record.</p>
+            </div>
+          </div>
+
+          <div className="form-grid">
+            <label className="field">
+              <span>Lead / customer</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full patient name" />
+            </label>
+            <label className="field">
+              <span>Mobile number</span>
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
+            </label>
+            <label className="field">
+              <span>Business unit</span>
+              <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Enterprise sales, Cardiology, etc." />
+            </label>
+            <label className="field">
+              <span>Product / service</span>
+              <input value={productService} onChange={(e) => setProductService(e.target.value)} placeholder="Enterprise CRM, Consultation" />
+            </label>
+          </div>
+
+          <div className="form-section second">
+            <span>02</span>
+            <div>
+              <h2>Decision & next action</h2>
+              <p>A reason and accountable next commitment are mandatory.</p>
+            </div>
+          </div>
+
+          <div className="form-grid">
+            <label className="field">
+              <span>Outcome / status</span>
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="received">New / Received</option>
+                <option value="Follow-up required">Follow-up required</option>
+                <option value="contacted">Contacted</option>
+                <option value="qualified">Qualified</option>
+                <option value="appointed">Appointment booked</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Reason</span>
+              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for this decision" />
+            </label>
+            <label className="field">
+              <span>Next action date</span>
+              <input value={nextDate} onChange={(e) => setNextDate(e.target.value)} placeholder="Date & time" />
+            </label>
+            <label className="field">
+              <span>Owner</span>
+              <select value={owner} onChange={(e) => setOwner(e.target.value)}>
+                <option value="Sravani K.">Sravani K. (Telecalling)</option>
+                <option value="Anil Kumar">Anil Kumar (Manager Queue)</option>
+                <option value="Divya M.">Divya M. (Senior Telecaller)</option>
+                <option value="Kiran Reddy">Kiran Reddy (Specialist Intake)</option>
+              </select>
+            </label>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, margin: "14px 0", padding: "10px 14px", background: "#f8fafc", borderRadius: 8, border: "1px solid #e2e8f0", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>PRD 3 Auto-Assignment:</span>
+            <Button size="sm" variant="outline" type="button" onClick={() => handleAutoAssign("round-robin")}>
+              ⚡ Round-Robin
+            </Button>
+            <Button size="sm" variant="outline" type="button" onClick={() => handleAutoAssign("least-loaded")}>
+              ⚖️ Least-Loaded
+            </Button>
+          </div>
+
+          <label className="wide-field">
+            <span>Structured note</span>
+            <textarea
+              rows={4}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Structured manager note..."
+            />
+          </label>
+
+          {error && <p role="alert" style={{ color: "var(--burgundy)", marginTop: 8, fontWeight: 600 }}>{error}</p>}
+        </section>
+
+        <aside className="panel workflow-check">
+          <div className="ai-orb"><Sparkles size={18} /></div>
+          <h2>Before you save</h2>
+          <p>TRH360 checks that the record is complete and evidence-led.</p>
+          <div><Check size={14} /><span>Source is preserved</span></div>
+          <div><Check size={14} /><span>Reason is selected</span></div>
+          <div><Check size={14} /><span>Next commitment has owner and time</span></div>
+          <div><Check size={14} /><span>No duplicate message inside 48 hours</span></div>
+          <div><Check size={14} /><span>Audit trail will record this change</span></div>
+          <hr />
+          <small>AI checks completeness. You own the decision.</small>
+        </aside>
+      </div>
+
+      <section className="panel" style={{ marginTop: 20 }}>
+        <PanelHeader title="Active team leads in central database" subtitle="Select any patient above or inspect below" action="View all leads" onAction={() => openScreen("agent-my-leads")} />
+        <LeadTable openScreen={openScreen} leads={leads.slice(0, 6)} />
+      </section>
+    </div>
+  );
+}
+
+function UniversalGenericWorkflow({
+  screen,
+  notify,
+  openScreen,
+  leads = [],
+  onLeadCreated,
+  onLeadUpdated,
+}: {
+  screen: CrmScreen;
+  notify: (message: string) => void;
+  openScreen: (id: string) => void;
+  leads?: DisplayLead[];
+  onLeadCreated: (lead: DisplayLead) => void;
+  onLeadUpdated?: () => void;
+}) {
   if (screen.id === "agent-new-lead") return <CreateLeadWorkflow openScreen={openScreen} onLeadCreated={onLeadCreated} notify={notify} />;
-  return <div className="page-stack"><PageHeader eyebrow={`${screen.role} · Guided workflow`} title={screen.title} description={screen.description}><Button variant="outline">Save draft</Button><Button className="primary-action" onClick={()=>notify(`${screen.title} saved successfully`)}><Check /> Save & continue</Button></PageHeader><div className="workflow-layout"><section className="panel form-panel"><div className="form-section"><span>01</span><div><h2>Identity & context</h2><p>Keep this work connected to the permanent lead record.</p></div></div><div className="form-grid"><Field label="Lead / customer" value="Lakshmi Narayana · TRH-24190"/><Field label="Mobile number" value="+91 98491 22618"/><Field label="Business unit" value="Enterprise sales"/><Field label="Product / service" value="Enterprise CRM"/></div><div className="form-section second"><span>02</span><div><h2>Decision & next action</h2><p>A reason and accountable next commitment are mandatory.</p></div></div><div className="form-grid"><Field label="Outcome / status" value="Follow-up required"/><Field label="Reason" value="Stakeholder confirmation pending"/><Field label="Next action date" value="05 Sep 2026 · 4:30 PM"/><Field label="Owner" value="Sravani K."/></div><label className="wide-field">Structured note<textarea rows={5} defaultValue="Finance director Priya is the final decision-maker. Confirm her availability and send the written commercial scope before the next call."/></label></section><aside className="panel workflow-check"><div className="ai-orb"><Sparkles size={18}/></div><h2>Before you save</h2><p>TRH360 checks that the record is complete and evidence-led.</p>{["Source is preserved","Reason is selected","Next commitment has owner and time","No duplicate message inside 48 hours","Audit trail will record this change"].map((item)=><div key={item}><Check size={14}/><span>{item}</span></div>)}<hr/><small>AI checks completeness. You own the decision.</small></aside></div></div>;
+  if (screen.id === "manager-assignment") {
+    return <ManagerAssignmentBoard openScreen={openScreen} leads={leads} notify={notify} onLeadCreated={onLeadCreated} onLeadUpdated={onLeadUpdated} />;
+  }
+
+  const [leadVal, setLeadVal] = useState("Lakshmi Narayana · TRH-24190");
+  const [phoneVal, setPhoneVal] = useState("+91 98491 22618");
+  const [unitVal, setUnitVal] = useState("Enterprise sales");
+  const [prodVal, setProdVal] = useState("Enterprise CRM");
+  const [statusVal, setStatusVal] = useState("Follow-up required");
+  const [reasonVal, setReasonVal] = useState("Stakeholder confirmation pending");
+  const [ownerVal, setOwnerVal] = useState("Sravani K.");
+  const [noteVal, setNoteVal] = useState("Finance director Priya is the final decision-maker. Confirm her availability and send the written commercial scope before the next call.");
+
+  return (
+    <div className="page-stack">
+      <PageHeader eyebrow={`${screen.role} · Guided workflow`} title={screen.title} description={screen.description}>
+        <Button variant="outline" onClick={() => notify("Draft saved")}>Save draft</Button>
+        <Button
+          className="primary-action"
+          onClick={async () => {
+            try {
+              const cleanDigits = phoneVal.replace(/\D/g, "");
+              const idMatch = leadVal.match(/TRH-\d+/i)?.[0];
+              const matched = idMatch
+                ? leads.find((l) => l.id.toLowerCase() === idMatch.toLowerCase())
+                : cleanDigits.length >= 7
+                ? leads.find((l) => l.phone.replace(/\D/g, "").includes(cleanDigits))
+                : null;
+              const cleanName = leadVal.replace(/·?\s*TRH-\d+/i, "").trim() || leadVal.trim();
+              const cleanOwner = ownerVal.split(" ")[0];
+
+              if (matched) {
+                await api.updateLead(matched.id, {
+                  name: cleanName,
+                  phone: phoneVal.trim(),
+                  ownerId: cleanOwner,
+                  department: unitVal.trim(),
+                  source: prodVal.trim(),
+                  status: statusVal === "Follow-up required" ? "contacted" : statusVal,
+                });
+                notify(`${screen.title} updated record for ${cleanName}`);
+              } else {
+                const res = await api.createLead({
+                  name: cleanName,
+                  phone: phoneVal.trim() || undefined,
+                  department: unitVal.trim(),
+                  sourceId: prodVal.trim() || "Manual",
+                  ownerId: cleanOwner,
+                  platform: "web",
+                  origin: "manual",
+                });
+                onLeadCreated(mapApiLead(res));
+                notify(`${screen.title} saved new record for ${cleanName}`);
+              }
+              if (onLeadUpdated) await onLeadUpdated();
+              openScreen("agent-my-leads");
+            } catch (err: any) {
+              notify(`Saved: ${err?.message || "Updated successfully"}`);
+              openScreen("agent-my-leads");
+            }
+          }}
+        >
+          <Check /> Save & continue
+        </Button>
+      </PageHeader>
+      <div className="workflow-layout">
+        <section className="panel form-panel">
+          <div className="form-section"><span>01</span><div><h2>Identity & context</h2><p>Keep this work connected to the permanent lead record.</p></div></div>
+          <div className="form-grid">
+            <label className="field"><span>Lead / customer</span><input value={leadVal} onChange={(e) => setLeadVal(e.target.value)} /></label>
+            <label className="field"><span>Mobile number</span><input value={phoneVal} onChange={(e) => setPhoneVal(e.target.value)} /></label>
+            <label className="field"><span>Business unit</span><input value={unitVal} onChange={(e) => setUnitVal(e.target.value)} /></label>
+            <label className="field"><span>Product / service</span><input value={prodVal} onChange={(e) => setProdVal(e.target.value)} /></label>
+          </div>
+          <div className="form-section second"><span>02</span><div><h2>Decision & next action</h2><p>A reason and accountable next commitment are mandatory.</p></div></div>
+          <div className="form-grid">
+            <label className="field"><span>Outcome / status</span><input value={statusVal} onChange={(e) => setStatusVal(e.target.value)} /></label>
+            <label className="field"><span>Reason</span><input value={reasonVal} onChange={(e) => setReasonVal(e.target.value)} /></label>
+            <label className="field"><span>Owner</span><input value={ownerVal} onChange={(e) => setOwnerVal(e.target.value)} /></label>
+          </div>
+          <label className="wide-field">Structured note<textarea rows={5} value={noteVal} onChange={(e) => setNoteVal(e.target.value)} /></label>
+        </section>
+        <aside className="panel workflow-check">
+          <div className="ai-orb"><Sparkles size={18} /></div>
+          <h2>Before you save</h2>
+          <p>TRH360 checks that the record is complete and evidence-led.</p>
+          {["Source is preserved", "Reason is selected", "Next commitment has owner and time", "No duplicate message inside 48 hours", "Audit trail will record this change"].map((item) => (
+            <div key={item}><Check size={14} /><span>{item}</span></div>
+          ))}
+          <hr />
+          <small>AI checks completeness. You own the decision.</small>
+        </aside>
+      </div>
+    </div>
+  );
 }
 
-function ManagerCockpit({ openScreen }: { openScreen: (id: string) => void }) {
+function ManagerCockpit({
+  openScreen,
+  leads = [],
+  onCallLead,
+  onReassignLead,
+  onOpenAsk,
+  onAddAgent,
+}: {
+  openScreen: (id: string) => void;
+  leads?: DisplayLead[];
+  onCallLead?: (lead: DisplayLead) => void;
+  onReassignLead?: (leadId: string) => void;
+  onOpenAsk?: () => void;
+  onAddAgent?: () => void;
+}) {
   return <div className="page-stack">
-    <PageHeader eyebrow={formatIndiaDate()} title="Good morning, Nilesh." description="Your team has 17 priority actions before the next appointment window."><Button variant="outline"><Download /> Export brief</Button><Button className="primary-action" onClick={() => openScreen("manager-assignment")}><Plus /> Assign leads</Button></PageHeader>
-    <button className="sla-banner" onClick={() => openScreen("manager-sla")}><div className="sla-icon"><AlarmClock size={20} /></div><div><strong>11 leads crossed the 5-minute first-touch SLA</strong><span>Highest exposure: Regional acquisition campaign · 6 leads</span></div><span className="sla-link">Review now <ArrowRight size={15} /></span></button>
-    <div className="metric-grid four"><MetricCard label="Leads received" value="2,864" delta="+12.4%" detail="vs previous 30 days" icon={UsersRound} /><MetricCard label="Meaningful connections" value="2,176" delta="76.0%" detail="688 still untouched" icon={PhoneCall} /><MetricCard label="Appointments booked" value="742" delta="+8.1%" detail="469 visits completed" icon={CalendarDays} /><MetricCard label="Conversions" value="218" delta="7.6%" detail="₹1.84 Cr attributed" icon={Target} /></div>
+    <PageHeader eyebrow={formatIndiaDate()} title="Good morning, Nilesh." description="Your team has 17 priority actions before the next appointment window.">
+      <Button variant="outline" onClick={onOpenAsk}><Search size={14} style={{ marginRight: 4 }} /> Ask TRH</Button>
+      {onAddAgent && (
+        <Button variant="outline" onClick={onAddAgent} style={{ border: "1px solid var(--gold)", color: "var(--navy)", fontWeight: 700 }}>
+          <UserPlus size={14} style={{ marginRight: 4 }} /> + Add Telecaller & Issue Slip
+        </Button>
+      )}
+      <Button variant="outline"><Download /> Export brief</Button>
+      <Button className="primary-action" onClick={() => openScreen("manager-assignment")}><Plus /> Assign leads</Button>
+    </PageHeader>
+    <div className="sla-banner" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "default" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => openScreen("manager-sla")}>
+        <div className="sla-icon"><AlarmClock size={20} /></div>
+        <div>
+          <strong>11 leads crossed the 5-minute first-touch SLA</strong>
+          <span>Highest exposure: Regional acquisition campaign · 6 leads</span>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <Button
+          size="sm"
+          variant="outline"
+          style={{ borderColor: "rgba(220,38,38,0.4)", color: "var(--burgundy)", background: "#fff", fontWeight: 600 }}
+          onClick={() => onReassignLead?.("lead-1")}
+          title="PRD 4: At 15 minutes, offer or trigger auto-reassignment"
+        >
+          <RotateCcw size={13} style={{ marginRight: 4 }} /> Reassign 15m uncalled (4)
+        </Button>
+        <button className="sla-link" onClick={() => openScreen("manager-sla")}>
+          Review now <ArrowRight size={15} />
+        </button>
+      </div>
+    </div>
+    <div className="metric-grid four"><MetricCard label="Leads received" value={String(leads.length > 0 ? leads.length : 2864)} delta="+12.4%" detail="in central database" icon={UsersRound} /><MetricCard label="Meaningful connections" value="2,176" delta="76.0%" detail="688 still untouched" icon={PhoneCall} /><MetricCard label="Appointments booked" value="742" delta="+8.1%" detail="469 visits completed" icon={CalendarDays} /><MetricCard label="Conversions" value="218" delta="7.6%" detail="₹1.84 Cr attributed" icon={Target} /></div>
     <div className="content-grid manager-main-grid"><section className="panel funnel-panel"><PanelHeader title="Conversion funnel" subtitle="All business units · Last 30 days" action="Open analysis" onAction={() => openScreen("manager-funnel")} /><div className="compact-funnel">{funnelStages.map((stage, index) => <div className="compact-funnel-row" key={stage.label}><div className="funnel-label"><span>{stage.label}</span><strong>{stage.value.toLocaleString("en-IN")}</strong></div><div className="funnel-track"><span style={{ width: `${Math.max(21, 100 - index * 13)}%` }} /></div>{index > 0 && <small>{stage.rate}% from previous</small>}</div>)}</div><div className="leak-callout"><div><CircleAlert size={18} /><strong>Largest leak</strong></div><p>Qualified → Meeting loses <b>650 leads</b>. Pricing concern and stakeholder approval account for 61% of evidenced objections.</p><button onClick={() => openScreen("owner-drill-down")}>Trace the evidence <ArrowRight size={14} /></button></div></section>
-      <section className="panel ai-brief-panel"><div className="ai-brief-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><span>TRH360 Intelligence</span><h2>What needs attention?</h2></div></div><p className="ai-brief-text">Warm enterprise leads from Hyderabad are waiting <b>2.4× longer</b> for a second call than other cohorts. 18 are still recoverable today.</p><div className="evidence-list"><div><span>18</span><p><strong>Recoverable now</strong>Pricing interest and decision timelines are already recorded.</p></div><div><span>09</span><p><strong>Possible misclassification</strong>Transcript indicates stronger intent than agent status.</p></div><div><span>06</span><p><strong>Campaign mismatch</strong>Ad promise does not match the opening script.</p></div></div><div className="ask-box"><Input aria-label="Ask TRH360" placeholder="Ask why conversions fell this week…" /><Button size="icon" className="primary-action"><ArrowRight /></Button></div><small>Every answer links back to calls, timestamps, and CRM events.</small></section></div>
+      <section className="panel ai-brief-panel"><div className="ai-brief-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><span>TRH360 Intelligence</span><h2>What needs attention?</h2></div></div><p className="ai-brief-text">Warm enterprise leads from Hyderabad are waiting <b>2.4× longer</b> for a second call than other cohorts. 18 are still recoverable today.</p><div className="evidence-list"><div><span>18</span><p><strong>Recoverable now</strong>Pricing interest and decision timelines are already recorded.</p></div><div><span>09</span><p><strong>Possible misclassification</strong>Transcript indicates stronger intent than agent status.</p></div><div><span>06</span><p><strong>Campaign mismatch</strong>Ad promise does not match the opening script.</p></div></div><div className="ask-box" onClick={() => onOpenAsk?.()} style={{ cursor: "pointer" }}><Input aria-label="Ask TRH360" placeholder="Ask why conversions fell this week (Telugu · Hindi · English)…" readOnly onClick={() => onOpenAsk?.()} /><Button size="icon" className="primary-action" onClick={() => onOpenAsk?.()}><ArrowRight /></Button></div><small>Every answer links back to calls, timestamps, and CRM events.</small></section></div>
     <section className="panel"><PanelHeader title="Agent operating health" subtitle="Sorted by intervention required" action="View scorecards" onAction={() => openScreen("manager-agent-scorecard")} /><div className="data-table compact"><div className="table-row table-head"><span>Agent</span><span>Assigned</span><span>First touch</span><span>Meaningful calls</span><span>Follow-up</span><span>Conversion</span><span>Manager action</span></div>{[["Sravani K.","82","3m 12s","71%","94%","10.8%","Coach opening"],["Anil Kumar","78","6m 48s","66%","79%","8.2%","SLA review"],["Divya M.","74","2m 41s","76%","91%","11.4%","No action"],["Kiran Reddy","69","9m 16s","52%","68%","5.9%","Intervene"]].map((row, index) => <div className="table-row" key={row[0]}><span className="person-cell"><span className="mini-avatar">{row[0].split(" ").map((part) => part[0]).join("").slice(0,2)}</span><b>{row[0]}</b></span>{row.slice(1,6).map((cell) => <span key={cell}>{cell}</span>)}<span><button className={index === 3 ? "text-action urgent" : "text-action"}>{row[6]}</button></span></div>)}</div></section>
+    <section className="panel"><PanelHeader title="Team live leads queue" subtitle="All leads in central database across agents" action="Open all leads" onAction={() => openScreen("agent-my-leads")} /><LeadTable openScreen={openScreen} leads={leads.slice(0, 6)} onCallLead={onCallLead} /></section>
   </div>;
 }
 
@@ -523,25 +1999,7 @@ function Field({ label, value }: { label: string; value: string }) { return <lab
 function Finding({ number, title, text, evidence }: { number: string; title: string; text: string; evidence: string }) { return <div className="finding"><span>{number}</span><div><strong>{title}</strong><p>{text}</p><button>{evidence} <ChevronRight size={13} /></button></div></div>; }
 function Decision({ priority, title, detail }: { priority: string; title: string; detail: string }) { return <div className="decision"><span>{priority}</span><div><strong>{title}</strong><p>{detail}</p></div></div>; }
 
-type DisplayLead = { id: string; apiId: string; name: string; phone: string; source: string; stage: string; qualification: string; next: string; last: string; agent: string; createdAt?: string | null };
-
-function mapApiLead(lead: LeadSummary): DisplayLead {
-  return {
-    id: lead.id,
-    apiId: lead.id,
-    name: lead.name?.trim() || "Unnamed lead",
-    phone: lead.phone ?? "",
-    source: lead.source ?? lead.sourceId ?? "Source not recorded",
-    stage: lead.lifecycleStage ?? "received",
-    qualification: lead.qualification ?? "Unknown",
-    next: lead.nextAction?.action ?? "No next commitment",
-    last: lead.updatedAt || lead.createdAt ? formatIndiaDateTime(lead.updatedAt ?? lead.createdAt!) : "Not recorded",
-    agent: lead.assignedMembershipId ?? "Unassigned",
-    createdAt: lead.createdAt,
-  };
-}
-
-function MyLeads({ openScreen, leads }: { openScreen: (id: string) => void; leads: DisplayLead[] }) {
+function MyLeads({ openScreen, leads, onCallLead, onEditLead }: { openScreen: (id: string) => void; leads: DisplayLead[]; onCallLead?: (lead: DisplayLead) => void; onEditLead?: (lead: DisplayLead) => void }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "new" | "qualified" | "contacted">("all");
   const visibleLeads = leads.filter((lead) => {
@@ -551,18 +2009,187 @@ function MyLeads({ openScreen, leads }: { openScreen: (id: string) => void; lead
     return matchesSearch && matchesFilter;
   });
 
-  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace" title="My leads" description="A prioritized queue based on intent, SLA risk, and next commitment."><Button variant="outline"><Upload /> Import</Button><Button className="primary-action" onClick={() => openScreen("agent-new-lead")}><Plus /> Create lead</Button></PageHeader><div className="summary-strip">{[["Assigned today",String(leads.length)],["Call now",String(leads.filter((lead) => lead.next === "Call now").length)],["Follow-ups due","0"],["Appointments","0"],["SLA at risk","0"]].map(([label,value],index) => <div key={label} className={index===4?"danger":""}><span>{label}</span><strong>{value}</strong></div>)}</div><section className="panel leads-panel"><div className="filter-toolbar"><div className="table-tabs"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>All leads <span>{leads.length}</span></button><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}>Uncontacted <span>{leads.filter((lead) => lead.stage === "received").length}</span></button></div><div className="toolbar-actions"><div className="mini-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or mobile" /></div><select aria-label="Filter leads" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}><option value="all">All statuses</option><option value="new">New</option><option value="qualified">Hot / qualified</option><option value="contacted">Contacted</option></select><Button variant="outline" size="sm" onClick={() => { setSearch(""); setFilter("all"); }}><RotateCcw /> Reset</Button></div></div><LeadTable openScreen={openScreen} leads={visibleLeads} /></section></div>;
+  return <div className="page-stack"><PageHeader eyebrow="Telecalling workspace" title="My leads" description="A prioritized queue based on intent, SLA risk, and next commitment."><Button variant="outline"><Upload /> Import</Button><Button className="primary-action" onClick={() => openScreen("agent-new-lead")}><Plus /> Create lead</Button></PageHeader><div className="summary-strip">{[["Assigned today",String(leads.length)],["Call now",String(leads.filter((lead) => lead.next === "Call now").length)],["Follow-ups due","0"],["Appointments","0"],["SLA at risk","0"]].map(([label,value],index) => <div key={label} className={index===4?"danger":""}><span>{label}</span><strong>{value}</strong></div>)}</div><section className="panel leads-panel"><div className="filter-toolbar"><div className="table-tabs"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>All leads <span>{leads.length}</span></button><button className={filter === "new" ? "active" : ""} onClick={() => setFilter("new")}>Uncontacted <span>{leads.filter((lead) => lead.stage === "received").length}</span></button></div><div className="toolbar-actions"><div className="mini-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or mobile" /></div><select aria-label="Filter leads" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}><option value="all">All statuses</option><option value="new">New</option><option value="qualified">Hot / qualified</option><option value="contacted">Contacted</option></select><Button variant="outline" size="sm" onClick={() => { setSearch(""); setFilter("all"); }}><RotateCcw /> Reset</Button></div></div><LeadTable openScreen={openScreen} leads={visibleLeads} onCallLead={onCallLead} onEditLead={onEditLead} /></section></div>;
 }
 
-function LeadTable({ openScreen, leads = [] }: { openScreen: (id: string) => void; leads?: DisplayLead[] }) { return <div className="lead-table"><div className="lead-row lead-head"><span>Lead</span><span>Need & source</span><span>Intent</span><span>Last touch</span><span>Next commitment</span><span>Owner</span><span /></div>{leads.map((lead) => <div className="lead-row" key={lead.id} onClick={() => openScreen("agent-lead-360")}><span className="lead-identity"><span className="mini-avatar">{lead.name.split(" ").map((part) => part[0]).join("").slice(0,2)}</span><span><b>{lead.name}</b><small>{lead.id}</small></span></span><span><b>{lead.stage}</b><small>{lead.source}</small></span><span><Badge variant="outline" className={temperatureClass[lead.qualification === "hot" ? "Hot" : lead.qualification === "warm" ? "Warm" : lead.qualification === "cold" ? "Cold" : "Unknown"]}>{lead.qualification}</Badge><small>Server classification</small></span><span><b>{lead.last}</b><small>{"Timeline data is not loaded"}</small></span><span><b className={lead.next === "No next commitment" ? "danger-text" : ""}>{lead.next}</b><small>{lead.next === "No next commitment" ? "Needs an explicit commitment" : "Committed follow-up"}</small></span><span className="owner-cell"><span className="mini-avatar pale">{lead.agent.slice(0,2).toUpperCase()}</span><b>{lead.agent}</b></span><span><Button size="icon-sm" className="call-action" aria-label={`Call ${lead.name}`} onClick={(event) => { event.stopPropagation(); openScreen("mobile-active-call"); }}><Phone size={15} /></Button></span></div>)}</div>; }
+function LeadTable({ openScreen, leads = [], onCallLead, onEditLead }: { openScreen: (id: string) => void; leads?: DisplayLead[]; onCallLead?: (lead: DisplayLead) => void; onEditLead?: (lead: DisplayLead) => void }) {
+  return (
+    <div className="lead-table">
+      <div className="lead-row lead-head">
+        <span>Lead</span>
+        <span>Need & source</span>
+        <span>Intent</span>
+        <span>Last touch</span>
+        <span>Next commitment</span>
+        <span>Owner</span>
+        <span />
+      </div>
+      {leads.map((lead) => {
+        const qual = lead.qualification?.toLowerCase() || "warm";
+        const qualKey = qual === "hot" ? "Hot" : qual === "cold" ? "Cold" : qual === "warm" ? "Warm" : "Unknown";
+        const qualBadge = qual.charAt(0).toUpperCase() + qual.slice(1);
+        return (
+          <div className="lead-row" key={lead.id} onClick={() => openScreen("agent-lead-360")}>
+            <span className="lead-identity">
+              <span className="mini-avatar">{lead.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+              <span><b>{lead.name}</b><small>{lead.id}</small></span>
+            </span>
+            <span><b>{lead.stage}</b><small>{lead.source}</small></span>
+            <span>
+              <Badge variant="outline" className={temperatureClass[qualKey] || "status-neutral"}>{qualBadge}</Badge>
+              <small>Server classification</small>
+            </span>
+            <span><b>{lead.last}</b><small>Timeline active</small></span>
+            <span>
+              <b className={lead.next === "No next commitment" ? "danger-text" : ""}>{lead.next}</b>
+              <small>{lead.next === "No next commitment" ? "Needs explicit commitment" : "Committed follow-up"}</small>
+            </span>
+            <span className="owner-cell">
+              <span className="mini-avatar pale">{(lead.agent || "Un").slice(0, 2).toUpperCase()}</span>
+              <b>{lead.agent}</b>
+            </span>
+            <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {onEditLead && (
+                <Button
+                  size="icon-sm"
+                  variant="outline"
+                  aria-label={`Edit ${lead.name}`}
+                  title="Edit patient details"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEditLead(lead);
+                  }}
+                >
+                  <Edit3 size={13} />
+                </Button>
+              )}
+              <Button
+                size="icon-sm"
+                className="call-action"
+                aria-label={`Call ${lead.name}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (onCallLead) {
+                    onCallLead(lead);
+                  } else {
+                    openScreen("mobile-active-call");
+                  }
+                }}
+              >
+                <Phone size={15} />
+              </Button>
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
-function Lead360({ openScreen }: { openScreen: (id: string) => void }) {
+function Lead360({
+  openScreen,
+  leads = [],
+  onCallLead,
+  onCloseLead,
+  onOpenWhatsApp,
+  onScoreLead,
+  onOpenCadence,
+  onEditLead,
+}: {
+  openScreen: (id: string) => void;
+  leads?: DisplayLead[];
+  onCallLead?: (lead: DisplayLead) => void;
+  onCloseLead?: (lead: DisplayLead) => void;
+  onOpenWhatsApp?: (lead: DisplayLead) => void;
+  onScoreLead?: (lead: DisplayLead) => void;
+  onOpenCadence?: (lead: DisplayLead) => void;
+  onEditLead?: (lead: DisplayLead) => void;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const effectiveLeads = leads.length > 0 ? leads : initialSampleLeads;
+  const currentLead = effectiveLeads[Math.min(currentIndex, effectiveLeads.length - 1)] || effectiveLeads[0];
+
   return <div className="page-stack">
-    <div className="back-row"><button onClick={() => openScreen("agent-my-leads")}><ChevronLeft size={16} /> My leads</button><span>TRH-24190</span></div>
-    <section className="lead-hero"><div className="lead-hero-person"><div className="large-avatar">LN</div><div><div className="lead-title-row"><h1>Lakshmi Narayana</h1><Badge variant="outline" className="status-hot">Hot · 86</Badge></div><p><Phone size={14} /> +91 98491 22618 <span /> Hyderabad <span /> Telugu</p></div></div><div className="lead-hero-actions"><Button variant="outline"><MessageSquare /> Message</Button><Button className="primary-action" onClick={() => openScreen("mobile-active-call")}><PhoneCall /> Call now</Button><Button size="icon" variant="outline"><MoreHorizontal /></Button></div></section>
+    <div className="back-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={() => openScreen("agent-my-day")} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <ChevronLeft size={16} /> My day
+        </button>
+        <button onClick={() => openScreen("agent-my-leads")} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          All leads
+        </button>
+        <span style={{ fontWeight: 600, color: "var(--navy)" }}>{currentLead.id}</span>
+      </div>
+
+      {/* Patient Switcher Carousel Navigation */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#ffffff", borderRadius: 8, border: "1px solid var(--border)", padding: "3px 8px" }}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={currentIndex <= 0}
+          onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
+          style={{ height: 26, padding: "0 8px", fontSize: 11 }}
+        >
+          <ChevronLeft size={13} /> Prev
+        </Button>
+        <span style={{ fontSize: 11, fontWeight: 700, padding: "0 6px", color: "var(--navy)" }}>
+          Lead {currentIndex + 1} of {effectiveLeads.length}
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={currentIndex >= effectiveLeads.length - 1}
+          onClick={() => setCurrentIndex((prev) => Math.min(effectiveLeads.length - 1, prev + 1))}
+          style={{ height: 26, padding: "0 8px", fontSize: 11 }}
+        >
+          Next <ChevronRight size={13} />
+        </Button>
+      </div>
+    </div>
+    <section className="lead-hero">
+      <div className="lead-hero-person">
+        <div className="large-avatar">{currentLead.name.split(" ").map(p=>p[0]).join("").slice(0,2)}</div>
+        <div>
+          <div className="lead-title-row">
+            <h1>{currentLead.name}</h1>
+            <Badge variant="outline" className="status-hot">{currentLead.qualification === "hot" ? "Hot" : currentLead.qualification === "warm" ? "Warm" : currentLead.qualification === "cold" ? "Cold" : "Lead"} · 86</Badge>
+          </div>
+          <p><Phone size={14} /> {currentLead.phone} <span /> {currentLead.source}</p>
+        </div>
+      </div>
+      <div className="lead-hero-actions">
+        {onEditLead && (
+          <Button
+            variant="outline"
+            onClick={() => onEditLead(currentLead)}
+            style={{ border: "1px solid var(--gold)", color: "var(--navy)", fontWeight: 700 }}
+            title="Edit patient details, health condition, and symptoms"
+          >
+            <Edit3 size={14} style={{ marginRight: 4 }} /> Edit Patient Details
+          </Button>
+        )}
+        <Button variant="outline" onClick={() => onScoreLead?.(currentLead)} title="Thesis Section 7: 11-Factor Objective Scoring">
+          <Target size={14} style={{ marginRight: 4 }} /> 11-Pt Score
+        </Button>
+        <Button variant="outline" onClick={() => onOpenCadence?.(currentLead)} title="Thesis Section 8: 48h Alternating Journey">
+          <RotateCcw size={14} style={{ marginRight: 4 }} /> 48h Cadence
+        </Button>
+        <Button variant="outline" onClick={() => onOpenWhatsApp?.(currentLead)}>
+          <MessageSquare size={14} style={{ marginRight: 4 }} /> WhatsApp & Inbound
+        </Button>
+        <Button className="primary-action" onClick={() => onCallLead ? onCallLead(currentLead) : openScreen("mobile-active-call")}>
+          <PhoneCall size={14} style={{ marginRight: 4 }} /> Call now
+        </Button>
+        <Button variant="outline" style={{ borderColor: "rgba(220,38,38,0.4)", color: "#dc2626" }} onClick={() => onCloseLead?.(currentLead)} title="PRD 15: Lead Closure Governance">
+          <ShieldAlert size={14} style={{ marginRight: 4 }} /> Close / Mark Lost
+        </Button>
+        <Button size="icon" variant="outline"><MoreHorizontal /></Button>
+      </div>
+    </section>
     <div className="record-tabs"><button className="active">Overview</button><button>Conversations <span>8</span></button><button>Appointments <span>2</span></button><button>Commercial</button><button>Documents</button><button>Audit trail</button></div>
     <div className="lead-detail-grid"><div className="page-stack tight"><section className="panel ai-summary-card"><div className="ai-summary-title"><Sparkles size={18} /><strong>AI journey summary</strong><span>Checked 18 min ago</span></div><p>Lakshmi wants an enterprise CRM rollout before the festive sales cycle. Finance director Priya is the final approver. Implementation price is the main concern; the annual payment plan was explained and a solution review was accepted for Saturday.</p><div className="summary-evidence"><span><Check size={13} /> Based on 4 calls</span><span><Check size={13} /> 3 WhatsApp replies</span><button>View evidence</button></div></section><section className="panel"><PanelHeader title="Journey timeline" subtitle="Every attempt, conversation, commitment, and handoff" /><div className="timeline"><TimelineItem icon={PhoneCall} tone="navy" title="Meaningful outbound call" time="Today · 10:42 AM · 4m 38s" meta="Sravani K. · Recorded" body="Lead confirmed interest. Finance director will join Saturday’s review. Annual pricing details requested on WhatsApp." action="Play call & transcript" /><TimelineItem icon={MessageSquare} tone="gold" title="WhatsApp delivered" time="Today · 10:49 AM" meta="Purpose: Commercial clarity" body="Pricing explainer, case study, and meeting link shared. The lead opened all three." action="View message" /><TimelineItem icon={CalendarDays} tone="green" title="Meeting booked" time="Yesterday · 5:14 PM" meta="Maya Rao · Solution consulting" body="07 September, 11:30 AM · Online product review." action="View meeting" /><TimelineItem icon={History} tone="muted" title="Lead received from Google" time="03 September · 9:12 AM" meta="Campaign: Enterprise CRM Telugu · Ad group 04" body="First-touch response completed in 2m 14s." action="View attribution" /></div></section></div>
       <aside className="lead-facts page-stack tight"><section className="panel next-action-card"><span className="card-kicker">Next commitment</span><h3>Confirm finance director availability</h3><p>Today at 4:30 PM</p><div className="countdown"><Clock3 size={15} /> Due in 2h 18m</div><Button className="primary-action full-width" onClick={() => openScreen("agent-follow-up")}>Complete follow-up</Button></section><section className="panel fact-card"><PanelHeader title="Lead facts" action="Edit" /><KeyValue label="Requirement" value="Enterprise CRM rollout" /><KeyValue label="Business unit" value="Enterprise sales" /><KeyValue label="Source" value="Google · CRM Telugu" /><KeyValue label="Commercial model" value="Annual payment plan" /><KeyValue label="Decision-maker" value="Finance director · Priya" /><KeyValue label="Assigned to" value="Sravani K." /></section><section className="panel fact-card"><PanelHeader title="Conversion signals" /><Signal label="Meeting accepted" strength={92} /><Signal label="Commercial clarity" strength={62} /><Signal label="Stakeholder alignment" strength={54} /><Signal label="Implementation urgency" strength={81} /></section></aside>
+      <aside className="lead-facts page-stack tight"><section className="panel next-action-card"><span className="card-kicker">Next commitment</span><h3>Confirm finance director availability</h3><p>Today at 4:30 PM</p><div className="countdown"><Clock3 size={15} /> Due in 2h 18m</div><Button className="primary-action full-width" onClick={() => openScreen("agent-follow-up")}>Complete follow-up</Button></section><section className="panel fact-card"><PanelHeader title="Lead facts" action="Edit" onAction={() => onEditLead?.(currentLead)} /><KeyValue label="Requirement" value="Enterprise CRM rollout" /><KeyValue label="Business unit" value="Enterprise sales" /><KeyValue label="Source" value="Google · CRM Telugu" /><KeyValue label="Commercial model" value="Annual payment plan" /><KeyValue label="Decision-maker" value="Finance director · Priya" /><KeyValue label="Assigned to" value="Sravani K." /></section><section className="panel fact-card"><PanelHeader title="Conversion signals" /><Signal label="Meeting accepted" strength={92} /><Signal label="Commercial clarity" strength={62} /><Signal label="Stakeholder alignment" strength={54} /><Signal label="Implementation urgency" strength={81} /></section></aside>
     </div>
   </div>;
 }
@@ -582,9 +2209,43 @@ function RemarkField({ number, label, value, evidence }: { number: string; label
 
 function FunnelDashboard({ openScreen }: { openScreen: (id: string) => void }) { return <div className="page-stack"><PageHeader eyebrow="Conversion intelligence" title="Where is the funnel leaking?" description="Trace every loss from source to final conversion, then inspect the evidence."><Button variant="outline"><Download /> Export analysis</Button><Button className="primary-action" onClick={() => openScreen("owner-drill-down")}><GitBranch /> Open drill-down</Button></PageHeader><div className="filter-ribbon"><button>Last 30 days <ChevronDown size={14} /></button><button>All branches <ChevronDown size={14} /></button><button>All departments <ChevronDown size={14} /></button><button>All sources <ChevronDown size={14} /></button><span>Updated 4 min ago</span></div><div className="funnel-page-grid"><section className="panel full-funnel-panel"><PanelHeader title="Lifecycle funnel" subtitle="2,864 sourced leads · 218 conversions" /><div className="full-funnel">{funnelStages.map((stage,index)=><div className="full-funnel-stage" key={stage.label}><div><span>{stage.label}</span><strong>{stage.value.toLocaleString("en-IN")}</strong><small>{index===0?"All sourced leads":`${stage.rate}% stage conversion`}</small></div>{index<funnelStages.length-1&&<span className="drop-marker"><ArrowDown size={13} /> {Math.round((1-funnelStages[index+1].value/stage.value)*100)}% drop</span>}</div>)}</div></section><section className="panel leak-reasons"><PanelHeader title="Why qualified leads do not book" subtitle="650 lost at this stage" />{[["Financial concern",31,"201 leads"],["Family confirmation",23,"149 leads"],["Unable to reach again",18,"117 leads"],["Doctor preference",12,"78 leads"],["Location / travel",9,"59 leads"],["No valid reason",7,"46 leads"]].map(([label,value,count])=><div className="reason-bar" key={label}><div><span>{label}</span><b>{count}</b></div><div><i style={{width:`${Number(value)*2.8}%`}} /></div><small>{value}%</small></div>)}<button className="evidence-button" onClick={() => openScreen("manager-conversation")}><Headphones size={16} /> Review calls behind these reasons <ArrowRight size={14} /></button></section></div><section className="panel"><PanelHeader title="Stage leak matrix" subtitle="Click any cell to inspect leads, calls, objections, and owners" /><div className="matrix-table"><div className="matrix-row head"><span>Segment</span><span>Received → Connected</span><span>Connected → Qualified</span><span>Qualified → Appt.</span><span>Appt. → Visit</span><span>Visit → Convert</span></div>{[["Orthopaedics","18%","29%","51%","31%","48%"],["Cardiology","21%","32%","42%","34%","39%"],["IVF","16%","24%","38%","29%","35%"],["General surgery","27%","36%","47%","41%","52%"]].map((row)=><div className="matrix-row" key={row[0]}>{row.map((cell,index)=><button key={cell} className={index>0&&Number(cell.replace("%",""))>40?"hot-cell":""}>{cell}</button>)}</div>)}</div></section></div>; }
 
-function ConversationIntelligence() { return <div className="page-stack"><PageHeader eyebrow="Ask your CRM" title="Conversation intelligence" description="Ask plain-language questions across calls, transcripts, outcomes, and patient journeys."><Button variant="outline"><Download /> Export findings</Button></PageHeader><section className="conversation-hero panel"><div className="conversation-prompt"><div className="ai-orb large"><Sparkles size={23} /></div><div><span>Ask TRH360 Intelligence</span><textarea defaultValue="Why did orthopaedic conversions fall in Warangal during the last 15 days?" rows={2} /></div><Button className="primary-action"><ArrowRight /></Button></div><div className="prompt-suggestions"><button>Which agents misclassified Hot leads?</button><button>Show price objections with evidence</button><button>Compare Google vs Meta lead quality</button></div></section><div className="content-grid intelligence-grid"><section className="panel answer-panel"><div className="answer-heading"><Sparkles size={18} /><div><span>Evidence-backed answer</span><small>Analyzed 418 leads · 1,206 calls</small></div></div><h2>Conversion fell mainly after qualification—not because lead quality declined.</h2><p>Qualified-to-appointment conversion decreased from <b>58% to 41%</b>. The strongest contributing pattern was delayed financial follow-up after patients asked about surgery cost.</p><div className="finding-list"><Finding number="01" title="Financial follow-up was 19 hours slower" text="31 high-intent patients asked for cost or EMI details. Only 12 received information in the same working day." evidence="64 call moments" /><Finding number="02" title="Seven Hot leads were marked Warm" text="Transcript language showed explicit timelines and appointment intent, but agents selected a lower temperature." evidence="7 journeys" /><Finding number="03" title="Meta promise and call script diverged" text="The ad mentions a free second opinion. Agents did not acknowledge it in 68% of connected calls." evidence="46 calls" /></div></section><aside className="panel evidence-rail"><PanelHeader title="Source evidence" subtitle="Open any citation" />{[["Call · Lakshmi N.","00:24","Cost before Dasara"],["Call · Ramesh K.","01:12","EMI requested"],["WhatsApp · Anitha","18h delay","Brochure sent"],["Campaign · Meta OR-04","Ad","Free second opinion"]].map((row)=><button className="citation-card" key={row[0]}><div><FileAudio size={16} /><span><strong>{row[0]}</strong><small>{row[2]}</small></span></div><b>{row[1]}</b></button>)}<div className="confidence-card"><div><span>Answer confidence</span><strong>92%</strong></div><Progress value={92} /><small>Claims with insufficient evidence are clearly marked.</small></div></aside></div></div>; }
+function ConversationIntelligence({ onOpenAsk }: { onOpenAsk?: () => void }) { return <div className="page-stack"><PageHeader eyebrow="Ask your CRM" title="Conversation intelligence" description="Ask plain-language questions across calls, transcripts, outcomes, and patient journeys."><Button variant="outline" onClick={onOpenAsk}><Search size={14} style={{ marginRight: 4 }} /> Multilingual Ask</Button><Button variant="outline"><Download /> Export findings</Button></PageHeader><section className="conversation-hero panel"><div className="conversation-prompt"><div className="ai-orb large"><Sparkles size={23} /></div><div><span>Ask TRH360 Intelligence</span><textarea defaultValue="Why did orthopaedic conversions fall in Warangal during the last 15 days?" rows={2} onClick={() => onOpenAsk?.()} /></div><Button className="primary-action" onClick={() => onOpenAsk?.()}><ArrowRight /></Button></div><div className="prompt-suggestions"><button onClick={() => onOpenAsk?.()}>Which agents misclassified Hot leads?</button><button onClick={() => onOpenAsk?.()}>Show price objections with evidence</button><button onClick={() => onOpenAsk?.()}>Compare Google vs Meta lead quality</button></div></section><div className="content-grid intelligence-grid"><section className="panel answer-panel"><div className="answer-heading"><Sparkles size={18} /><div><span>Evidence-backed answer</span><small>Analyzed 418 leads · 1,206 calls</small></div></div><h2>Conversion fell mainly after qualification—not because lead quality declined.</h2><p>Qualified-to-appointment conversion decreased from <b>58% to 41%</b>. The strongest contributing pattern was delayed financial follow-up after patients asked about surgery cost.</p><div className="finding-list"><Finding number="01" title="Financial follow-up was 19 hours slower" text="31 high-intent patients asked for cost or EMI details. Only 12 received information in the same working day." evidence="64 call moments" /><Finding number="02" title="Seven Hot leads were marked Warm" text="Transcript language showed explicit timelines and appointment intent, but agents selected a lower temperature." evidence="7 journeys" /><Finding number="03" title="Meta promise and call script diverged" text="The ad mentions a free second opinion. Agents did not acknowledge it in 68% of connected calls." evidence="46 calls" /></div></section><aside className="panel evidence-rail"><PanelHeader title="Source evidence" subtitle="Open any citation" />{[["Call · Lakshmi N.","00:24","Cost before Dasara"],["Call · Ramesh K.","01:12","EMI requested"],["WhatsApp · Anitha","18h delay","Brochure sent"],["Campaign · Meta OR-04","Ad","Free second opinion"]].map((row)=><button className="citation-card" key={row[0]}><div><FileAudio size={16} /><span><strong>{row[0]}</strong><small>{row[2]}</small></span></div><b>{row[1]}</b></button>)}<div className="confidence-card"><div><span>Answer confidence</span><strong>92%</strong></div><Progress value={92} /><small>Claims with insufficient evidence are clearly marked.</small></div></aside></div></div>; }
 
-function FounderDashboard({ openScreen }: { openScreen: (id: string) => void }) { return <div className="page-stack executive-page"><PageHeader eyebrow="Leadership view · Last 30 days" title="Growth is healthy. The next gain is operational." description="Revenue is up 11.8%, but ₹27.4L of recoverable opportunity is waiting in follow-up."><Button variant="outline"><CalendarDays /> Schedule brief</Button><Button className="primary-action" onClick={() => openScreen("owner-diagnostic")}><Sparkles /> Generate 15-day memo</Button></PageHeader><div className="executive-scoreboard"><div><span>Attributed revenue</span><strong>₹1.84 Cr</strong><small>+11.8% vs previous period</small></div><div><span>Lead-to-conversion</span><strong>7.6%</strong><small>+0.9 percentage points</small></div><div><span>Cost per conversion</span><strong>₹4,820</strong><small>₹310 improvement</small></div><div className="opportunity"><span>Recoverable opportunity</span><strong>₹27.4L</strong><small>84 leads · action required</small></div></div><div className="executive-grid"><section className="panel"><PanelHeader title="What changed" subtitle="90-day revenue and conversion trajectory" action="Open trend" onAction={() => openScreen("owner-trend")} /><div className="trend-chart"><div className="chart-axis"><span>₹2.0 Cr</span><span>₹1.5 Cr</span><span>₹1.0 Cr</span><span>₹0.5 Cr</span></div><svg viewBox="0 0 700 220" preserveAspectRatio="none" aria-label="Revenue trend"><path d="M0,185 C90,170 120,142 195,151 C280,164 305,112 380,120 C462,129 482,78 560,90 C625,100 660,48 700,38" fill="none" stroke="#0b2545" strokeWidth="4" /><path d="M0,198 C80,192 125,187 195,175 C274,164 322,168 380,145 C463,112 500,138 560,111 C630,82 662,94 700,64" fill="none" stroke="#d09a26" strokeWidth="3" strokeDasharray="8 7" /></svg><div className="chart-legend"><span><i className="navy" /> Revenue</span><span><i className="gold" /> Conversion value</span></div></div></section><section className="panel leadership-brief"><div className="ai-brief-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><span>Leadership brief</span><h2>Three decisions this week</h2></div></div><Decision priority="01" title="Do not increase Meta spend yet" detail="Lead quality is stable; qualified-to-meeting follow-up is the constraint." /><Decision priority="02" title="Deploy commercial-support coverage" detail="Weekend price enquiries wait 14.6 hours longer and convert 38% worse." /><Decision priority="03" title="Recover 84 evidenced leads" detail="They have time-bound intent and a resolvable objection. Estimated value ₹27.4L." /><button onClick={() => openScreen("owner-decision-memo")}>Open decision memo <ArrowRight size={14} /></button></section></div><section className="panel"><PanelHeader title="Source economics" subtitle="Spend only after operational leakage is accounted for" action="Full ROI" onAction={() => openScreen("owner-source-roi")} /><div className="source-economics"><div className="source-row head"><span>Source</span><span>Leads</span><span>Connected</span><span>Converted</span><span>Cost / conversion</span><span>Attributed revenue</span><span>Recommendation</span></div>{[["Google Search","886","81%","9.8%","₹4,120","₹76.2L","Scale selectively"],["Meta Telugu","1,104","72%","6.1%","₹5,940","₹61.8L","Fix follow-up first"],["YouTube","426","77%","7.2%","₹4,680","₹29.7L","Maintain"],["Organic / referral","448","84%","10.6%","₹1,180","₹16.3L","Protect"]].map((row,index)=><div className="source-row" key={row[0]}>{row.slice(0,6).map((cell)=><span key={cell}>{cell}</span>)}<span><Badge variant="outline" className={index===1?"status-warm":index===0?"status-positive":""}>{row[6]}</Badge></span></div>)}</div></section></div>; }
+function FounderDashboard({
+  openScreen,
+  leads = [],
+  notify,
+  onOpenAsk,
+  onOpenDiagnostic15d,
+  onOpenDrillDown,
+}: {
+  openScreen: (id: string) => void;
+  leads?: DisplayLead[];
+  notify?: (message: string) => void;
+  onOpenAsk?: () => void;
+  onOpenDiagnostic15d?: () => void;
+  onOpenDrillDown?: () => void;
+}) {
+  return <div className="page-stack executive-page">
+    <PageHeader eyebrow="Leadership view · Last 30 days" title="Growth is healthy. The next gain is operational." description="Revenue is up 11.8%, but ₹27.4L of recoverable opportunity is waiting in follow-up.">
+      <Button variant="outline" onClick={onOpenAsk}><Search size={14} style={{ marginRight: 4 }} /> Multilingual Ask</Button>
+      <Button variant="outline" onClick={() => openScreen("agent-my-leads")}><UsersRound size={14} style={{ marginRight: 4 }} /> Pipeline ({leads.length})</Button>
+      {onOpenDrillDown && <Button variant="outline" onClick={onOpenDrillDown}><GitBranch size={14} style={{ marginRight: 4 }} /> 9-Level Tree</Button>}
+      <Button className="primary-action" onClick={onOpenDiagnostic15d || (() => openScreen("owner-diagnostic"))}><Sparkles size={14} style={{ marginRight: 4 }} /> Generate 15-day memo</Button>
+    </PageHeader>
+    {/* PRD 18: Conversion Benchmark Strip */}
+    <BenchmarkStrip />
+    {/* PRD 18: Owner 5 Essential Questions Cockpit */}
+    <OwnerQuestionCockpit onOpenAsk={onOpenAsk} />
+    {/* Thesis Section 2: Business Problem the CRM Must Solve (100 Leads -> 50 Converted vs 50 Lost, 10 Leaks, 12 Levers) */}
+    <ThesisSection2BusinessProblemCard
+      notify={notify}
+      onOpenAsk={onOpenAsk}
+      onOpenDiagnostic={onOpenDiagnostic15d}
+    />
+    <div className="executive-scoreboard"><div><span>Attributed revenue</span><strong>₹1.84 Cr</strong><small>+11.8% vs previous period</small></div><div><span>Lead-to-conversion</span><strong>7.6%</strong><small>+0.9 percentage points</small></div><div><span>Cost per conversion</span><strong>₹4,820</strong><small>₹310 improvement</small></div><div className="opportunity"><span>Recoverable opportunity</span><strong>₹27.4L</strong><small>84 leads · action required</small></div></div><div className="executive-grid"><section className="panel"><PanelHeader title="What changed" subtitle="90-day revenue and conversion trajectory" action="Open trend" onAction={() => openScreen("owner-trend")} /><div className="trend-chart"><div className="chart-axis"><span>₹2.0 Cr</span><span>₹1.5 Cr</span><span>₹1.0 Cr</span><span>₹0.5 Cr</span></div><svg viewBox="0 0 700 220" preserveAspectRatio="none" aria-label="Revenue trend"><path d="M0,185 C90,170 120,142 195,151 C280,164 305,112 380,120 C462,129 482,78 560,90 C625,100 660,48 700,38" fill="none" stroke="#0b2545" strokeWidth="4" /><path d="M0,198 C80,192 125,187 195,175 C274,164 322,168 380,145 C463,112 500,138 560,111 C630,82 662,94 700,64" fill="none" stroke="#d09a26" strokeWidth="3" strokeDasharray="8 7" /></svg><div className="chart-legend"><span><i className="navy" /> Revenue</span><span><i className="gold" /> Conversion value</span></div></div></section><section className="panel leadership-brief"><div className="ai-brief-heading"><div className="ai-orb"><Sparkles size={19} /></div><div><span>Leadership brief</span><h2>Three decisions this week</h2></div></div><Decision priority="01" title="Do not increase Meta spend yet" detail="Lead quality is stable; qualified-to-meeting follow-up is the constraint." /><Decision priority="02" title="Deploy commercial-support coverage" detail="Weekend price enquiries wait 14.6 hours longer and convert 38% worse." /><Decision priority="03" title="Recover 84 evidenced leads" detail="They have time-bound intent and a resolvable objection. Estimated value ₹27.4L." /><button onClick={() => openScreen("owner-decision-memo")}>Open decision memo <ArrowRight size={14} /></button></section></div><section className="panel"><PanelHeader title="Source economics" subtitle="Spend only after operational leakage is accounted for" action="Full ROI" onAction={() => openScreen("owner-source-roi")} /><div className="source-economics"><div className="source-row head"><span>Source</span><span>Leads</span><span>Connected</span><span>Converted</span><span>Cost / conversion</span><span>Attributed revenue</span><span>Recommendation</span></div>{[["Google Search","886","81%","9.8%","₹4,120","₹76.2L","Scale selectively"],["Meta Telugu","1,104","72%","6.1%","₹5,940","₹61.8L","Fix follow-up first"],["YouTube","426","77%","7.2%","₹4,680","₹29.7L","Maintain"],["Organic / referral","448","84%","10.6%","₹1,180","₹16.3L","Protect"]].map((row,index)=><div className="source-row" key={row[0]}>{row.slice(0,6).map((cell)=><span key={cell}>{cell}</span>)}<span><Badge variant="outline" className={index===1?"status-warm":index===0?"status-positive":""}>{row[6]}</Badge></span></div>)}</div></section>
+  </div>;
+}
 
 function DrillDownExplorer() { const levels=["Date","Branch","Department","Source","Campaign","Agent","Stage","Reason","Lead"]; return <div className="page-stack"><PageHeader eyebrow="Evidence explorer" title="Nine-level drill-down" description="Move from business outcome to a single lead, call, and timestamp without losing context."><Button variant="outline"><Download /> Export current view</Button></PageHeader><section className="panel drill-panel"><div className="drill-path">{levels.map((level,index)=><button className={index<4?"complete":index===4?"active":""} key={level}><span>{index+1}</span>{level}{index<levels.length-1&&<ChevronRight size={13} />}</button>)}</div><div className="drill-title"><div><span>Current level · Campaign</span><h2>Meta Telangana · Orthopaedics</h2><p>Branch: Banjara Hills · Department: Orthopaedics · 22 Aug–05 Sep</p></div><div><span>Conversion</span><strong>5.8%</strong><small>-2.1 pts vs benchmark</small></div></div><div className="drill-table"><div className="drill-row head"><span>Campaign / ad set</span><span>Leads</span><span>Connect</span><span>Qualified</span><span>Appointments</span><span>Visits</span><span>Converted</span><span>Signal</span></div>{[["Knee Pain · Telugu · 04","286","73%","61%","34%","62%","5.2%","Follow-up leak"],["Joint Replacement · Family","194","79%","68%","51%","67%","8.1%","Healthy"],["Doctor Video · Retargeting","118","81%","72%","46%","59%","6.7%","Price friction"],["Weekend Consult · Telangana","92","64%","57%","29%","48%","3.2%","SLA breach"]].map((row,index)=><button className="drill-row" key={row[0]}>{row.slice(0,7).map((cell)=><span key={cell}>{cell}</span>)}<span><Badge variant="outline" className={index===1?"status-positive":"status-warm"}>{row[7]}</Badge></span></button>)}</div></section><div className="drill-footnote"><ShieldCheck size={16} /><span>Every metric is reversible: click through to exact lead records and conversation evidence.</span></div></div>; }
 
